@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.com/segmeno/kodo.svg?branch=master)](https://travis-ci.com/segmeno/kodo)
+
 This Project is a lightweight database access layer for quick data inserts, updates, deletes or reads.
 Currently supported DBs are MySql.
 
