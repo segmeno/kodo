@@ -27,15 +27,13 @@ public abstract class DatabaseEntity {
 	
 	final transient List<Field> fields = new ArrayList<Field>();
 	
-	public void initFields() {
-		if (fields.isEmpty()) {			
-			fields.addAll(Arrays.asList(this.getClass().getDeclaredFields()));
-		}
+	public DatabaseEntity() {
+		fields.addAll(Arrays.asList(this.getClass().getDeclaredFields()));
 	}
 	
 	/**
 	 * to stay generic inside the dbManager class, this method allows objects to populate their respective children (like assigned roles inside a user)	
-	 * @param manager
+	 * @param manager the SqlManager implementation
 	 * @throws Exception
 	 */
 	public abstract void fillChildObjects(SqlManager manager) throws Exception;
@@ -53,7 +51,6 @@ public abstract class DatabaseEntity {
 	public String[] getColumnNames() {
 		final List<String> result = new ArrayList<String>();
 		
-		initFields();
 		for (Field f : fields) {
 			f.setAccessible(true);
 			if (f.getAnnotation(DbIgnore.class) != null || f.getAnnotation(PrimaryKey.class) != null) {
@@ -65,14 +62,15 @@ public abstract class DatabaseEntity {
 	};
 	
 	/**
-	 * retrieves all fields which should be persisted in the db when saving the inheriting object
+	 * * retrieves all fields which should be persisted in the db when saving the inheriting object
+	 * @param isKeyCaseSensitive controls if the map key should be looked up case sensitive
 	 * @return a map presentation of the object
-	 */	
+	 * @throws Exception 
+	 */
 	public Map<String, Object> toMap(boolean isKeyCaseSensitive) throws Exception {
 		
 		final Map<String,Object> map = new HashMap<String,Object>();
 		
-		initFields();
 		for (Field f : fields) {
 			f.setAccessible(true);
 			if (f.getAnnotation(DbIgnore.class) != null) {
@@ -84,8 +82,12 @@ public abstract class DatabaseEntity {
 	}
 	
 	@JsonIgnore
+	/**
+	 * 
+	 * @return the primary key column name
+	 * @throws Exception
+	 */
 	public String getPrimaryKeyColumn() throws Exception {
-		initFields();
 		for (Field f : fields) {
 			f.setAccessible(true);
 			if (f.getAnnotation(PrimaryKey.class) != null) {
@@ -96,8 +98,12 @@ public abstract class DatabaseEntity {
 	}
 	
 	@JsonIgnore
+	/**
+	 * 
+	 * @return the parent key column name, in case this is a child object
+	 * @throws Exception
+	 */
 	public String getParentKeyColunm() throws Exception {
-		initFields();
 		for (Field f : fields) {
 			f.setAccessible(true);
 			if (f.getAnnotation(ParentKey.class) != null) {
@@ -109,11 +115,10 @@ public abstract class DatabaseEntity {
 
 	/**
 	 * fills the inheriting object from the values from the map
-	 * @param map
+	 * @param map all values to the corresponding field names
 	 */
 	public void fromMap(Map<String, Object> map) throws Exception {
 		
-		initFields();
 		for (Field f: fields) {
 			f.setAccessible(true);
 			if (map.get(f.getName()) != null) {
@@ -122,7 +127,12 @@ public abstract class DatabaseEntity {
 		}
 	}
 	
-	
+	/**
+	 * casts a date object into the correct datatype
+	 * 
+	 * @param o
+	 * @return the cast date
+	 */
 	public Date getDate(Object o) {
 		if (o instanceof Timestamp) {
 			return new Date(((Timestamp)o).getTime());
@@ -137,10 +147,14 @@ public abstract class DatabaseEntity {
 		return null;
 	}
 	
-	
+	/**
+	 * sets the primary key field
+	 * 
+	 * @param id
+	 * @throws Exception
+	 */
 	public void setId(Object id) throws Exception {
 		
-		initFields();
 		for (Field f : fields) {
 			f.setAccessible(true);
 			if (f.getAnnotation(PrimaryKey.class) != null) {
@@ -151,9 +165,13 @@ public abstract class DatabaseEntity {
 		throw new Exception("Could not find primary key for entity '" + this.getClass().getName() +"'. Please use the '@PrimaryKey' annotation to mark a field as PrimaryKey!");
 	}
 	
+	/**
+	 * returns the value of the primary key field
+	 * 
+	 * @return
+	 */
 	public Object getId() {
 		
-		initFields();
 		for (Field f : fields) {
 			f.setAccessible(true);
 			if (f.getAnnotation(PrimaryKey.class) != null) {
@@ -171,6 +189,13 @@ public abstract class DatabaseEntity {
 		throw new RuntimeException(msg);
 	}
 	
+	/**
+	 * convenience method to access map values which are integers
+	 * 
+	 * @param map
+	 * @param key
+	 * @return
+	 */
 	protected Integer getIntOrNull(Map<String,Object> map, String key) {
 		if (map == null || map.get(key) == null) {
 			return null;
@@ -178,6 +203,13 @@ public abstract class DatabaseEntity {
 		return Integer.valueOf(String.valueOf(map.get(key)));
 	}
 	
+	/**
+	 * convenience method to access map values which are booleans
+	 * 
+	 * @param map
+	 * @param key
+	 * @return
+	 */
 	protected Boolean getBoolOrNull(Map<String,Object> map, String key) {
 		if (map == null || map.get(key) == null) {
 			return null;
@@ -185,6 +217,13 @@ public abstract class DatabaseEntity {
 		return Boolean.valueOf(String.valueOf(map.get(key)));
 	}
 	
+	/**
+	 * convenience method to access map values which are strings
+	 * 
+	 * @param map
+	 * @param key
+	 * @return
+	 */
 	protected String getStringOrNull(Map<String,Object> map, String key) {
 		if (map == null || map.get(key) == null) {
 			return null;
@@ -195,6 +234,13 @@ public abstract class DatabaseEntity {
 		return null;
 	}
 	
+	/**
+	 * convenience method to access map values which are dates
+	 * 
+	 * @param map
+	 * @param key
+	 * @return
+	 */
 	protected Date getDateOrNull(Map<String,Object> map, String key) {
 		if (map == null || map.get(key) == null) {
 			return null;
