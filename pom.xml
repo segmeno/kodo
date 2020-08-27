@@ -108,8 +108,8 @@
 						<extensions>true</extensions>
 						<configuration>
 							<serverId>ossrh</serverId>
-							<nexusurl>https://oss.sonatype.org/</nexusurl>
-							<autoreleaseafterclose>true</autoreleaseafterclose>
+							<nexusUrl>https://oss.sonatype.org/</nexusUrl>
+							<autoReleaseAfterClose>true</autoReleaseAfterClose>
 						</configuration>
 					</plugin>
 					<!-- To generate javadoc -->
