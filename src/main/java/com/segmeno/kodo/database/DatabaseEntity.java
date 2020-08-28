@@ -5,13 +5,13 @@ import java.sql.Timestamp;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import org.apache.log4j.Logger;
+
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.segmeno.kodo.annotation.DbIgnore;
 import com.segmeno.kodo.annotation.ParentKey;
@@ -24,11 +24,26 @@ public abstract class DatabaseEntity {
 	public static final String MYSQL_DATETIME_FORMAT = "yyyy-MM-dd hHH:mm:ss";
 	
 	private static final SimpleDateFormat FORMATTER = new SimpleDateFormat(MYSQL_DATETIME_FORMAT);
+	private Field primaryKey;
+	private Field parentKey;
 	
 	final transient List<Field> fields = new ArrayList<Field>();
 	
 	public DatabaseEntity() {
-		fields.addAll(Arrays.asList(this.getClass().getDeclaredFields()));
+		
+		for (Field field : this.getClass().getDeclaredFields()) {
+			field.setAccessible(true);
+			if (field.getAnnotation(DbIgnore.class) != null) {
+				continue;
+			}
+			if (field.getAnnotation(PrimaryKey.class) != null) {
+				primaryKey = field;
+			}
+			else if (field.getAnnotation(ParentKey.class) != null) {
+				parentKey = field;
+			}
+			fields.add(field);
+		}
 	}
 	
 	/**
@@ -36,7 +51,7 @@ public abstract class DatabaseEntity {
 	 * @param manager the SqlManager implementation
 	 * @throws Exception
 	 */
-	public abstract void fillChildObjects(SqlManager manager) throws Exception;
+	public abstract void fillChildObjects(DataAccessManager manager) throws Exception;
 	
 	/**
 	 * 
@@ -46,19 +61,10 @@ public abstract class DatabaseEntity {
 	
 	/**
 	 * 
-	 * @return the column names of this entity, relevant for inserts
+	 * @return the column names of this entity
 	 */
-	public String[] getColumnNames() {
-		final List<String> result = new ArrayList<String>();
-		
-		for (Field f : fields) {
-			f.setAccessible(true);
-			if (f.getAnnotation(DbIgnore.class) != null || f.getAnnotation(PrimaryKey.class) != null) {
-    			continue;
-    		}
-			result.add(f.getName());
-		}
-		return result.toArray(new String[result.size()]);
+	public String[] getColumnNames(boolean includePrimaryKeyColumn) {
+		return fields.stream().filter(f -> !includePrimaryKeyColumn || f.getAnnotation(PrimaryKey.class) != null).toArray(String[]::new);
 	};
 	
 	/**
@@ -67,16 +73,10 @@ public abstract class DatabaseEntity {
 	 * @return a map presentation of the object
 	 * @throws Exception 
 	 */
-	public Map<String, Object> toMap(boolean isKeyCaseSensitive) throws Exception {
-		
+	public Map<String, Object> toMap() throws Exception {
 		final Map<String,Object> map = new HashMap<String,Object>();
-		
 		for (Field f : fields) {
-			f.setAccessible(true);
-			if (f.getAnnotation(DbIgnore.class) != null) {
-    			continue;
-    		}
-			map.put(isKeyCaseSensitive ? f.getName() : f.getName().toLowerCase(), f.get(this));
+			map.put(f.getName(), f.get(this));
 		}
 		return map;		
 	}
@@ -88,11 +88,8 @@ public abstract class DatabaseEntity {
 	 * @throws Exception
 	 */
 	public String getPrimaryKeyColumn() throws Exception {
-		for (Field f : fields) {
-			f.setAccessible(true);
-			if (f.getAnnotation(PrimaryKey.class) != null) {
-    			return f.getName();
-    		}
+		if (primaryKey != null) {
+			return primaryKey.getName();
 		}
 		throw new Exception("Could not find primary key for entity '" + this.getClass().getName() +"'. Please use the '@PrimaryKey' annotation to mark a field as PrimaryKey!");
 	}
@@ -104,11 +101,8 @@ public abstract class DatabaseEntity {
 	 * @throws Exception
 	 */
 	public String getParentKeyColunm() throws Exception {
-		for (Field f : fields) {
-			f.setAccessible(true);
-			if (f.getAnnotation(ParentKey.class) != null) {
-    			return f.getName();
-    		}
+		if (parentKey != null) {
+			return parentKey.getName();
 		}
 		throw new Exception("Could not find parent key for entity '" + this.getClass().getName() +"'. Please use the '@ParentKey' annotation to mark a field as ForeignKey to a parent table!");
 	}
@@ -155,12 +149,8 @@ public abstract class DatabaseEntity {
 	 */
 	public void setId(Object id) throws Exception {
 		
-		for (Field f : fields) {
-			f.setAccessible(true);
-			if (f.getAnnotation(PrimaryKey.class) != null) {
-				f.set(this, id);
-				return;
-			}
+		if (primaryKey != null) {
+			primaryKey.set(this, id);
 		}
 		throw new Exception("Could not find primary key for entity '" + this.getClass().getName() +"'. Please use the '@PrimaryKey' annotation to mark a field as PrimaryKey!");
 	}
@@ -172,17 +162,14 @@ public abstract class DatabaseEntity {
 	 */
 	public Object getId() {
 		
-		for (Field f : fields) {
-			f.setAccessible(true);
-			if (f.getAnnotation(PrimaryKey.class) != null) {
-    			try {
-					return f.get(f.getName());
-				} catch (Exception e) {
-					final String msg = "error during search for primary key field";
-					LOGGER.error(msg);
-					throw new RuntimeException(msg);
-				}
-    		}
+		if (primaryKey != null) {
+			try {
+				return primaryKey.get(primaryKey.getName());
+			} catch (Exception e) {
+				final String msg = "error during search for primary key field";
+				LOGGER.error(msg);
+				throw new RuntimeException(msg);
+			}
 		}
 		final String msg = "Could not find primary key for entity '" + this.getClass().getName() +"'. Please use the '@PrimaryKey' annotation to mark a field as PrimaryKey!";
 		LOGGER.error(msg);

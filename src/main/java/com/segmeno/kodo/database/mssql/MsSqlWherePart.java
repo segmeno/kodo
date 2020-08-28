@@ -1,4 +1,4 @@
-package com.segmeno.kodo.database.mysql;
+package com.segmeno.kodo.database.mssql;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -7,15 +7,15 @@ import java.util.stream.Collectors;
 import com.segmeno.kodo.transport.AdvancedCriteria;
 import com.segmeno.kodo.transport.Criteria;
 
-public class MySqlWherePart {
+public class MsSqlWherePart {
 	
 	private StringBuilder sb = new StringBuilder();
 	
-	public MySqlWherePart(AdvancedCriteria adCrit) throws Exception {
+	public MsSqlWherePart(AdvancedCriteria adCrit) throws Exception {
 		this(adCrit, null);
 	}
 
-	public MySqlWherePart(AdvancedCriteria adCrit, List<String> allowedFields) throws Exception {
+	public MsSqlWherePart(AdvancedCriteria adCrit, List<String> allowedFields) throws Exception {
 		
 		final List<Criteria> crits = getAllowedCriterias(adCrit, allowedFields);
 		
@@ -25,30 +25,30 @@ public class MySqlWherePart {
 				
 				switch (crit.getOperator()) {
 				case CONTAINS:
-					sb.append("BINARY ")
-					.append(crit.getFieldName())
+					sb.append(crit.getFieldName())
 					.append(" LIKE '%")
 					.append(crit.getStringValue() != null ? crit.getStringValue() : crit.getNumberValue())
 					.append("%'");
 					break;
 				case ICONTAINS:
-					sb.append(crit.getFieldName())
-					.append(" LIKE '%")
+					sb.append("UPPER(")
+					.append(crit.getFieldName())
+					.append(") LIKE UPPER('%")
 					.append(crit.getStringValue() != null ? crit.getStringValue() : crit.getNumberValue())
-					.append("%'");
+					.append("%')");
 					break;
 				case NOT_CONTAINS:
-					sb.append("BINARY ")
-					.append(crit.getFieldName())
+					sb.append(crit.getFieldName())
 					.append(" NOT LIKE '%")
 					.append(crit.getStringValue() != null ? crit.getStringValue() : crit.getNumberValue())
 					.append("%'");
 					break;
 				case INOT_CONTAINS:
-					sb.append(crit.getFieldName())
-					.append(" NOT LIKE '%")
+					sb.append("UPPER(")
+					.append(crit.getFieldName())
+					.append(" NOT LIKE UPPER('%")
 					.append(crit.getStringValue() != null ? crit.getStringValue() : crit.getNumberValue())
-					.append("%'");
+					.append("%')");
 					break;
 				case EQUALS:
 					if (crit.getStringValue() != null) {

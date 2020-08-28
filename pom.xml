@@ -31,6 +31,22 @@
 		</repository>
 	</distributionManagement>
 
+	<licenses>
+		<license>
+			<name>The Apache License, Version 2.0</name>
+			<url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+		</license>
+	</licenses>
+
+	<developers>
+		<developer>
+			<name>Thorsten Drude</name>
+			<email>thorsten.drude@segmeno.de</email>
+			<organization>segmeno</organization>
+			<organizationUrl>http://www.segmeno.com</organizationUrl>
+		</developer>
+	</developers>
+	
 	<dependencies>
 		<dependency>
 			<groupId>com.fasterxml.jackson.core</groupId>
@@ -57,23 +73,13 @@
 			<artifactId>spring-context</artifactId>
 			<version>5.2.8.RELEASE</version>
 		</dependency>
+		<dependency>
+		    <groupId>junit</groupId>
+		    <artifactId>junit</artifactId>
+		    <version>4.13</version>
+		    <scope>test</scope>
+		</dependency>
 	</dependencies>
-
-	<licenses>
-		<license>
-			<name>The Apache License, Version 2.0</name>
-			<url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
-		</license>
-	</licenses>
-
-	<developers>
-		<developer>
-			<name>Thorsten Drude</name>
-			<email>thorsten.drude@segmeno.de</email>
-			<organization>segmeno</organization>
-			<organizationUrl>http://www.segmeno.com</organizationUrl>
-		</developer>
-	</developers>
 
 	<build>
 		<plugins>

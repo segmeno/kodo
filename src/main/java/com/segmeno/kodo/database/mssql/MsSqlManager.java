@@ -1,4 +1,4 @@
-package com.segmeno.kodo.database.mysql;
+package com.segmeno.kodo.database.mssql;
 
 import org.apache.log4j.Logger;
 import org.springframework.stereotype.Component;
@@ -7,9 +7,9 @@ import com.segmeno.kodo.database.DataAccessManager;
 import com.segmeno.kodo.transport.AdvancedCriteria;
 
 @Component
-public class MySqlManager extends DataAccessManager {
+public class MsSqlManager extends DataAccessManager {
 
-	protected final static Logger log = Logger.getLogger(MySqlManager.class);
+	protected final static Logger log = Logger.getLogger(MsSqlManager.class);
 
 	@Override
 	protected String getSelectByPrimaryKeyQuery(String tableName, String primaryKeyColumnName) {
@@ -18,7 +18,7 @@ public class MySqlManager extends DataAccessManager {
 
 	@Override
 	protected String getSelectByCriteriaQuery(String tableName, AdvancedCriteria advancedCriteria) throws Exception {
-		final MySqlWherePart where = new MySqlWherePart(advancedCriteria);
+		final MsSqlWherePart where = new MsSqlWherePart(advancedCriteria);
 		if (where.isEmpty()) {
 			return "SELECT * FROM " + tableName;
 		}
@@ -27,7 +27,7 @@ public class MySqlManager extends DataAccessManager {
 
 	@Override
 	protected String getCountQuery(String tableName, AdvancedCriteria advancedCriteria) throws Exception {
-		final MySqlWherePart where = new MySqlWherePart(advancedCriteria);
+		final MsSqlWherePart where = new MsSqlWherePart(advancedCriteria);
 		if (where.isEmpty()) {
 			return "SELECT COUNT(*) FROM " + tableName;
 		}
