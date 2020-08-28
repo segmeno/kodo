@@ -1,6 +1,9 @@
 package com.segmeno.kodo.database.mysql;
 
+import javax.sql.DataSource;
+
 import org.apache.log4j.Logger;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 import com.segmeno.kodo.database.DataAccessManager;
@@ -10,6 +13,14 @@ import com.segmeno.kodo.transport.AdvancedCriteria;
 public class MySqlManager extends DataAccessManager {
 
 	protected final static Logger log = Logger.getLogger(MySqlManager.class);
+	
+	public MySqlManager(DataSource dataSource) {
+		super(dataSource);
+	}
+	
+	public MySqlManager(JdbcTemplate jdbcTemplate) {
+		super(jdbcTemplate);
+	}
 
 	@Override
 	protected String getSelectByPrimaryKeyQuery(String tableName, String primaryKeyColumnName) {

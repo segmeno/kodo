@@ -1,6 +1,6 @@
 package com.segmeno.kodo.transport;
 
-public enum OperatorId implements ValueEnum {
+public enum OperatorId {
     EQUALS("equals"),
     NOT_EQUAL("notEqual"),
     IEQUALS("iEquals"),

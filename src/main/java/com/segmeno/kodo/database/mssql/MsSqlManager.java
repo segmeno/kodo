@@ -1,6 +1,9 @@
 package com.segmeno.kodo.database.mssql;
 
+import javax.sql.DataSource;
+
 import org.apache.log4j.Logger;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 import com.segmeno.kodo.database.DataAccessManager;
@@ -11,6 +14,14 @@ public class MsSqlManager extends DataAccessManager {
 
 	protected final static Logger log = Logger.getLogger(MsSqlManager.class);
 
+	public MsSqlManager(DataSource dataSource) {
+		super(dataSource);
+	}
+	
+	public MsSqlManager(JdbcTemplate jdbcTemplate) {
+		super(jdbcTemplate);
+	}
+	
 	@Override
 	protected String getSelectByPrimaryKeyQuery(String tableName, String primaryKeyColumnName) {
 		return "SELECT * FROM " + tableName + " WHERE " + primaryKeyColumnName + " = ?";

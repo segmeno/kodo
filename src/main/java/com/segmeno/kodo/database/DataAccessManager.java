@@ -49,13 +49,16 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
 		return jdbcTemplate;
 	}
 	
-	public void setDataSource(DataSource dataSource) {
-		this.dataSource = dataSource;
-		this.jdbcTemplate = new JdbcTemplate(dataSource);
+	public DataAccessManager(JdbcTemplate jdbcTemplate) {
+		this.jdbcTemplate = jdbcTemplate;
+		this.dataSource = jdbcTemplate.getDataSource();
 		this.namedParameterJdbcTemplate = new NamedParameterJdbcTemplate(dataSource);
 	}
 	
-	public void afterPropertiesSet() throws Exception {
+	public DataAccessManager(DataSource dataSource) {
+		this.dataSource = dataSource;
+		this.jdbcTemplate = new JdbcTemplate(dataSource);
+		this.namedParameterJdbcTemplate = new NamedParameterJdbcTemplate(dataSource);
 	}
 	
 	@SuppressWarnings("unchecked")
