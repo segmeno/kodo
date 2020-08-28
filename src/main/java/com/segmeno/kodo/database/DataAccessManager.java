@@ -62,66 +62,66 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
 	}
 	
 	@SuppressWarnings("unchecked")
-	public <T> T getElem(Integer id, Class<? extends DatabaseEntity> model) throws Exception {
+	public <T> T getElem(Integer id, Class<? extends DatabaseEntity> entityType) throws Exception {
     	try {
-	    	final DatabaseEntity de = model.getConstructor().newInstance();
+	    	final DatabaseEntity de = entityType.getConstructor().newInstance();
 	    	final Map<String,Object> m = jdbcTemplate.queryForMap(getSelectByPrimaryKeyQuery(de.getTableName(), de.getPrimaryKeyColumn()), id);
 	    	de.fromMap(m);
 	    	de.fillChildObjects(this);
 	    	return (T)de;
 		} 
     	catch (DataAccessException e) {
-    		log.error("no object of type " + model.getName() + " for id " + id + " found");
+    		log.error("no object of type " + entityType.getName() + " for id " + id + " found");
     	} 
     	catch (Exception e1) {
-			log.error("could not load object of type " + model.getName(), e1);
+			log.error("could not load object of type " + entityType.getName(), e1);
 		}
     	return null;
     }
 	
-	public <T> List<T> getElems(Criteria criteria, Class<? extends DatabaseEntity> model) throws Exception {
+	public <T> List<T> getElems(Criteria criteria, Class<? extends DatabaseEntity> entityType) throws Exception {
     	final List<Criteria> list = new ArrayList<Criteria>();
     	list.add(criteria);
-    	return getElems(new AdvancedCriteria(OperatorId.AND, list), model);
+    	return getElems(new AdvancedCriteria(OperatorId.AND, list), entityType);
     }
     
 	@SuppressWarnings("unchecked")
-	public <T> List<T> getElems(AdvancedCriteria advancedCriteria, Class<? extends DatabaseEntity> model) throws Exception {
+	public <T> List<T> getElems(AdvancedCriteria advancedCriteria, Class<? extends DatabaseEntity> entityType) throws Exception {
     	try {
-	    	final DatabaseEntity de = model.getConstructor().newInstance();
+	    	final DatabaseEntity de = entityType.getConstructor().newInstance();
 	    	
 	    	final List<T> result = new ArrayList<T>();
 	    	jdbcTemplate.queryForList(getSelectByCriteriaQuery(de.getTableName(), advancedCriteria)).forEach(map -> {
 				try {
-					final DatabaseEntity obj = model.getConstructor().newInstance();
+					final DatabaseEntity obj = entityType.getConstructor().newInstance();
 					obj.fromMap(map);
 					obj.fillChildObjects(this);
 		    		result.add((T)obj);
 				} catch (Exception e) {
-					log.error("could not instantiate object of type " + model.getName(), e);
+					log.error("could not instantiate object of type " + entityType.getName(), e);
 				}
 	    	});
 	    	return result;
 		} 
     	catch (DataAccessException e) {
-    		log.error("no object of type " + model.getName() + " found");
+    		log.error("no object of type " + entityType.getName() + " found");
     	} 
     	catch (Exception e1) {
-			log.error("could not load object of type " + model.getName(), e1);
+			log.error("could not load object of type " + entityType.getName(), e1);
 		}
     	return null;
     }
     
-	public <T> List<T> getElems(Class <? extends DatabaseEntity> model) throws Exception {
-    	return getElems((AdvancedCriteria)null, model);
+	public <T> List<T> getElems(Class <? extends DatabaseEntity> entityType) throws Exception {
+    	return getElems((AdvancedCriteria)null, entityType);
     }
 
-    public Integer getElemCount(Class<? extends DatabaseEntity> model) throws Exception {
-    	return getElemCount(null, model);
+    public Integer getElemCount(Class<? extends DatabaseEntity> entityType) throws Exception {
+    	return getElemCount(null, entityType);
     }
 	
-	public Integer getElemCount(AdvancedCriteria advancedCriteria, Class<? extends DatabaseEntity> model) throws Exception {
-    	return jdbcTemplate.queryForObject(getCountQuery(model.getConstructor().newInstance().getTableName(), advancedCriteria), Integer.class);
+	public Integer getElemCount(AdvancedCriteria advancedCriteria, Class<? extends DatabaseEntity> entityType) throws Exception {
+    	return jdbcTemplate.queryForObject(getCountQuery(entityType.getConstructor().newInstance().getTableName(), advancedCriteria), Integer.class);
     }
     
     @SuppressWarnings("unchecked")
@@ -204,6 +204,14 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
 			log.error("could not delete object of type " + model.getName(), e1);
 		}
 	}
+    
+//    /**
+//     * this method can be used to retrieve data for grids, supports paging and filtering
+//     */
+//    public List<Object[]> getRows(Class<? extends DatabaseEntity> model) {
+//    	final String tableName = model.getConstructor().newInstance().getTableName();
+//    	jdbcTemplate.query("SELECT * FROM " + tableName)
+//    }
     
     protected <T> String toCsv(final T[] list) {
 		final StringBuilder sb = new StringBuilder();
