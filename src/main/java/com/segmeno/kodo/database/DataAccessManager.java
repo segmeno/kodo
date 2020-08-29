@@ -173,10 +173,10 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
 	}
     
     @Transactional(propagation = Propagation.REQUIRED)
-	public void deleteChildElems(Integer parentId, Class<? extends DatabaseEntity> model) throws Exception {
+	public void deleteChildElems(Integer parentId, String parentIdColumn, Class<? extends DatabaseEntity> model) throws Exception {
 		try {
 	    	final DatabaseEntity de = model.getConstructor().newInstance();
-	    	jdbcTemplate.update(getDeleteByParentKeyQuery(de.getTableName(), de.getParentKeyColunm()), parentId);
+	    	jdbcTemplate.update(getDeleteByParentKeyQuery(de.getTableName(), parentIdColumn), parentId);
 		}
 		 catch (Exception e1) {
 			log.error("could not delete object of type " + model.getName(), e1);
@@ -184,10 +184,10 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
 	}
     
     @Transactional(propagation = Propagation.REQUIRED)
-	public void deleteChildElems(String[] parentIds, Class<? extends DatabaseEntity> model) throws Exception {
+	public void deleteChildElems(String[] parentIds, String parentIdColumn, Class<? extends DatabaseEntity> model) throws Exception {
 		try {
 	    	final DatabaseEntity de = model.getConstructor().newInstance();
-	    	jdbcTemplate.update(getDeleteByParentKeysQuery(de.getTableName(), de.getParentKeyColunm(), parentIds));
+	    	jdbcTemplate.update(getDeleteByParentKeysQuery(de.getTableName(), parentIdColumn, parentIds));
 		}
 		 catch (Exception e1) {
 			log.error("could not delete object of type " + model.getName(), e1);

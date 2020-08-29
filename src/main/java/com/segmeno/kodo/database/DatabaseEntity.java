@@ -14,7 +14,6 @@ import org.apache.log4j.Logger;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.segmeno.kodo.annotation.DbIgnore;
-import com.segmeno.kodo.annotation.ParentKey;
 import com.segmeno.kodo.annotation.PrimaryKey;
 
 public abstract class DatabaseEntity {
@@ -25,7 +24,6 @@ public abstract class DatabaseEntity {
 	
 	private static final SimpleDateFormat FORMATTER = new SimpleDateFormat(MYSQL_DATETIME_FORMAT);
 	private Field primaryKey;
-	private Field parentKey;
 	
 	final transient List<Field> fields = new ArrayList<Field>();
 	
@@ -38,9 +36,6 @@ public abstract class DatabaseEntity {
 			}
 			if (field.getAnnotation(PrimaryKey.class) != null) {
 				primaryKey = field;
-			}
-			else if (field.getAnnotation(ParentKey.class) != null) {
-				parentKey = field;
 			}
 			fields.add(field);
 		}
@@ -92,19 +87,6 @@ public abstract class DatabaseEntity {
 			return primaryKey.getName();
 		}
 		throw new Exception("Could not find primary key for entity '" + this.getClass().getName() +"'. Please use the '@PrimaryKey' annotation to mark a field as PrimaryKey!");
-	}
-	
-	@JsonIgnore
-	/**
-	 * 
-	 * @return the parent key column name, in case this is a child object
-	 * @throws Exception
-	 */
-	public String getParentKeyColunm() throws Exception {
-		if (parentKey != null) {
-			return parentKey.getName();
-		}
-		throw new Exception("Could not find parent key for entity '" + this.getClass().getName() +"'. Please use the '@ParentKey' annotation to mark a field as ForeignKey to a parent table!");
 	}
 
 	/**
