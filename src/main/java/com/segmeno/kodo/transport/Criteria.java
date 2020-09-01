@@ -9,6 +9,10 @@ public class Criteria {
 	
 	public Criteria() {}
 	
+	public Criteria(String fieldName, OperatorId operator) {
+		this(fieldName, operator, null, null);
+	}
+	
 	public Criteria(String fieldName, OperatorId operator, String stringValue) {
 		this(fieldName, operator, stringValue, null);
 	}

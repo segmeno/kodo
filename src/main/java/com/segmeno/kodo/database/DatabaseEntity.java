@@ -5,6 +5,7 @@ import java.sql.Timestamp;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -14,13 +15,20 @@ import org.apache.log4j.Logger;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.segmeno.kodo.annotation.DbIgnore;
+import com.segmeno.kodo.annotation.MappingTable;
 import com.segmeno.kodo.annotation.PrimaryKey;
+import com.segmeno.kodo.transport.AdvancedCriteria;
 
 public abstract class DatabaseEntity {
 	
 	
 	private static final Logger LOGGER = Logger.getLogger(DatabaseEntity.class);
 	public static final String MYSQL_DATETIME_FORMAT = "yyyy-MM-dd hHH:mm:ss";
+	
+	// if this entity has a many-to-many relation to another entity, we retrieve information of the mapping table and fill it here
+	public transient MappingTable mappingTable;
+	// if a search query has been triggered and there are filters set, we temporarily use this field to transfer them
+	public AdvancedCriteria advancedCriteria;
 	
 	private static final SimpleDateFormat FORMATTER = new SimpleDateFormat(MYSQL_DATETIME_FORMAT);
 	private Field primaryKey;
@@ -42,13 +50,6 @@ public abstract class DatabaseEntity {
 	}
 	
 	/**
-	 * to stay generic inside the dbManager class, this method allows objects to populate their respective children (like assigned roles inside a user)	
-	 * @param manager the SqlManager implementation
-	 * @throws Exception
-	 */
-	public abstract void fillChildObjects(DataAccessManager manager) throws Exception;
-	
-	/**
 	 * 
 	 * @return the tableName of this entity
 	 */
@@ -58,20 +59,31 @@ public abstract class DatabaseEntity {
 	 * 
 	 * @return the column names of this entity
 	 */
-	public String[] getColumnNames(boolean includePrimaryKeyColumn) {
-		return fields.stream().filter(f -> !includePrimaryKeyColumn || f.getAnnotation(PrimaryKey.class) != null).toArray(String[]::new);
+	public List<String> getColumnNames(boolean includePrimaryKeyColumn) throws Exception {
+		final List<String> cols = new ArrayList<>();
+		for (Field f : fields) {
+			if ((!includePrimaryKeyColumn && f.getAnnotation(PrimaryKey.class) != null) || Collection.class.isAssignableFrom(f.getType())) {
+				continue;
+			}
+			cols.add(f.getName());
+		}
+		return cols;
+//		return fields.stream()
+//				.filter(f -> !includePrimaryKeyColumn || 
+//							f.getAnnotation(PrimaryKey.class) != null ||
+//			 				Collection.class.isAssignableFrom(f.getType()))
+//				.toArray(String[]::new);
 	};
 	
 	/**
 	 * * retrieves all fields which should be persisted in the db when saving the inheriting object
-	 * @param isKeyCaseSensitive controls if the map key should be looked up case sensitive
 	 * @return a map presentation of the object
 	 * @throws Exception 
 	 */
 	public Map<String, Object> toMap() throws Exception {
 		final Map<String,Object> map = new HashMap<String,Object>();
 		for (Field f : fields) {
-			map.put(f.getName(), f.get(this));
+			map.put(f.getName().toLowerCase(), f.get(this));
 		}
 		return map;		
 	}
@@ -146,7 +158,7 @@ public abstract class DatabaseEntity {
 		
 		if (primaryKey != null) {
 			try {
-				return primaryKey.get(primaryKey.getName());
+				return primaryKey.get(this);
 			} catch (Exception e) {
 				final String msg = "error during search for primary key field";
 				LOGGER.error(msg);

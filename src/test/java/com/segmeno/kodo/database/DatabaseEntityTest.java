@@ -1,24 +1,14 @@
 package com.segmeno.kodo.database;
 
-import static org.junit.Assert.assertEquals;
-
-import java.io.PrintWriter;
-import java.sql.Connection;
-import java.sql.SQLException;
-import java.sql.SQLFeatureNotSupportedException;
-import java.util.ArrayList;
-import java.util.List;
-
-import javax.sql.DataSource;
+import java.lang.reflect.Field;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
+import java.util.Collection;
 
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
-import com.segmeno.kodo.transport.AdvancedCriteria;
-import com.segmeno.kodo.transport.Criteria;
-import com.segmeno.kodo.transport.OperatorId;
 
 public class DatabaseEntityTest {
 
@@ -30,7 +20,21 @@ public class DatabaseEntityTest {
 	}
 
 	@Test
-	public void getSelectByPrimaryKeyQueryTest() {
+	public void mappingTableAnnotationTest() throws IllegalArgumentException, IllegalAccessException, ClassNotFoundException {
+		
+		final User user = new User();
+		for (Field f : user.fields) {
+			System.out.println(f.getName() + " = " + f.get(user));
+			if (Collection.class.isAssignableFrom(f.getType())) {
+				System.out.println(f.getName() + " is a Collection");
+				ParameterizedType genType = (ParameterizedType) f.getGenericType();
+				
+				Type genericType = genType.getActualTypeArguments()[0];
+				System.out.println("Collection holds elements of type: " + genericType.getTypeName());
+				Class<?> genericClass = Class.forName(genericType.getTypeName());
+				System.out.println(genericType.getTypeName() + " is subtype of DatabaseEntity? " + DatabaseEntity.class.isAssignableFrom(genericClass));
+			}
+		}
 	}
 	
 }

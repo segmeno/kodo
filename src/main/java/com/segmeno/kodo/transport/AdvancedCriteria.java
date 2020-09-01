@@ -17,6 +17,10 @@ public class AdvancedCriteria {
 		this.operator = operator;
 		this.criterias.add(criteria);
 	}
+	
+	public AdvancedCriteria(OperatorId operator) {
+		this.operator = operator;
+	}
 
 	public OperatorId getOperator() {
 		return operator;
@@ -24,6 +28,11 @@ public class AdvancedCriteria {
 	
 	public List<Criteria> getCriterias() {
 		return criterias;
+	}
+	
+	public AdvancedCriteria add(Criteria c) {
+		criterias.add(c);
+		return this;
 	}
 	
 }

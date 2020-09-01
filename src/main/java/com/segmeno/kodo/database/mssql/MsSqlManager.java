@@ -1,5 +1,7 @@
 package com.segmeno.kodo.database.mssql;
 
+import java.util.List;
+
 import javax.sql.DataSource;
 
 import org.apache.log4j.Logger;
@@ -7,7 +9,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 import com.segmeno.kodo.database.DataAccessManager;
-import com.segmeno.kodo.transport.AdvancedCriteria;
+import com.segmeno.kodo.database.DatabaseEntity;
+import com.segmeno.kodo.database.mysql.MySqlWherePart;
 
 @Component
 public class MsSqlManager extends DataAccessManager {
@@ -23,52 +26,54 @@ public class MsSqlManager extends DataAccessManager {
 	}
 	
 	@Override
-	protected String getSelectByPrimaryKeyQuery(String tableName, String primaryKeyColumnName) {
-		return "SELECT * FROM " + tableName + " WHERE " + primaryKeyColumnName + " = ?";
-	}
-
-	@Override
-	protected String getSelectByCriteriaQuery(String tableName, AdvancedCriteria advancedCriteria) throws Exception {
-		final MsSqlWherePart where = new MsSqlWherePart(advancedCriteria);
-		if (where.isEmpty()) {
-			return "SELECT * FROM " + tableName;
+	protected String getSelectQuery(DatabaseEntity mainEntity, List<DatabaseEntity> childEntitiesToJoin) throws Exception {
+		String select = "SELECT " + getColumnsCsvWithAlias(mainEntity.getTableName(), mainEntity.getColumnNames(true));
+		String from = " FROM " + mainEntity.getTableName();
+		String join = "";
+		String where = "";
+		
+		for (DatabaseEntity child : childEntitiesToJoin) {
+			select += ", " + getColumnsCsvWithAlias(child.getTableName(), child.getColumnNames(true));
+			if (child.mappingTable != null) {
+				final String masterCol = child.mappingTable.masterColumnName().isEmpty() ? mainEntity.getPrimaryKeyColumn() : child.mappingTable.masterColumnName();
+				final String joinedCol = child.mappingTable.joinedColumnName().isEmpty() ? child.getPrimaryKeyColumn() : child.mappingTable.joinedColumnName();
+				join += " LEFT JOIN " + child.mappingTable.value() + " ON " + child.mappingTable.value() + "." + masterCol + " = " + mainEntity.getTableName() + "." + mainEntity.getPrimaryKeyColumn();
+				join += " LEFT JOIN " + child.getTableName() + " ON " + child.getTableName() + "." + child.getPrimaryKeyColumn() + " = " + child.mappingTable.value() + "." + joinedCol;
+			}
+			else {
+				join += " LEFT JOIN " + child.getTableName() + " ON " + child.getTableName() + "." + child.getPrimaryKeyColumn() + " = " + mainEntity.getTableName() + "." + child.getPrimaryKeyColumn();
+			}
 		}
-		return "SELECT * FROM " + tableName + " WHERE " + where.toString();
-	}
-
-	@Override
-	protected String getCountQuery(String tableName, AdvancedCriteria advancedCriteria) throws Exception {
-		final MsSqlWherePart where = new MsSqlWherePart(advancedCriteria);
-		if (where.isEmpty()) {
-			return "SELECT COUNT(*) FROM " + tableName;
+		
+		if (mainEntity.advancedCriteria != null) {
+			final MySqlWherePart mainWherePart = new MySqlWherePart(mainEntity.getTableName(), mainEntity.advancedCriteria);
+			if (!mainWherePart.isEmpty()) {
+				where = " WHERE " + mainWherePart.toString();
+			}
 		}
-		return "SELECT COUNT(*) FROM " + tableName + " WHERE " + where.toString();
+		for (DatabaseEntity child : childEntitiesToJoin) {
+			if (child.advancedCriteria != null) {
+				final MySqlWherePart childWherePart = new MySqlWherePart(child.getTableName(), child.advancedCriteria);
+				where += where.isEmpty() ? " WHERE " + childWherePart.toString() : " AND " + childWherePart.toString();
+			}
+		}
+		
+		return select + from + join + where;
 	}
 
 	@Override
-	protected String getUpdateQuery(String tableName, String params, String primaryKeyColumn) {
+	protected String getCountQuery(String sql) throws Exception {
+		return "SELECT COUNT(*) FROM (" + sql + ")";
+	}
+
+	@Override
+	protected String getUpdateQuery(String tableName, String params, String primaryKeyColumn) throws Exception {
 		return "UPDATE " + tableName + " SET " + params + " WHERE " + primaryKeyColumn + " = :" + primaryKeyColumn;
 	}
 
 	@Override
-	protected String getDeleteByPrimaryKeyQuery(String tableName, String primaryKeyColumnName) {
-		return "DELETE FROM " + tableName + " WHERE " + primaryKeyColumnName + " = ?";
+	protected String getDeleteQuery(DatabaseEntity mainEntity) throws Exception {
+		return "DELETE FROM " + mainEntity.getTableName() + " WHERE " + mainEntity.getPrimaryKeyColumn() + " = ?)";
 	}
-
-	@Override
-	protected String getDeleteByPrimaryKeysQuery(String tableName, String primaryKeyColumnName, String[] primaryKeyIds) {
-		return "DELETE FROM " + tableName + " WHERE " + primaryKeyColumnName + " IN (" + toCsv(primaryKeyIds) + ")";
-	}
-
-	@Override
-	protected String getDeleteByParentKeyQuery(String tableName, String parentKeyColumnName) {
-		return "DELETE FROM " + tableName + " WHERE " + parentKeyColumnName + " = ?";
-	}
-
-	@Override
-	protected String getDeleteByParentKeysQuery(String tableName, String parentKeyColumnName, String[] parentKeyIds) {
-		return "DELETE FROM " + tableName + " WHERE " + parentKeyColumnName + " IN (" + toCsv(parentKeyIds) + ")";
-	}
-	
 
 }

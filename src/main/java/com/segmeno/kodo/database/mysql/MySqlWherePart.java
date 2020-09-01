@@ -11,61 +11,76 @@ public class MySqlWherePart {
 	
 	private StringBuilder sb = new StringBuilder();
 	
-	public MySqlWherePart(AdvancedCriteria adCrit) throws Exception {
-		this(adCrit, null);
+	public MySqlWherePart(String tableAlias, AdvancedCriteria adCrit) throws Exception {
+		this(tableAlias, adCrit, null);
 	}
 
-	public MySqlWherePart(AdvancedCriteria adCrit, List<String> allowedFields) throws Exception {
+	public MySqlWherePart(String tableAlias, AdvancedCriteria adCrit, List<String> allowedFields) throws Exception {
 		
 		final List<Criteria> crits = getAllowedCriterias(adCrit, allowedFields);
 		
 		if (adCrit != null && crits.size() > 0) {
+			sb.append("(");
 			
 			for (Criteria crit : crits) {
 				
 				switch (crit.getOperator()) {
 				case CONTAINS:
 					sb.append("BINARY ")
+					.append(tableAlias)
+					.append(".")
 					.append(crit.getFieldName())
 					.append(" LIKE '%")
 					.append(crit.getStringValue() != null ? crit.getStringValue() : crit.getNumberValue())
 					.append("%'");
 					break;
 				case ICONTAINS:
-					sb.append(crit.getFieldName())
+					sb.append(tableAlias)
+					.append(".")
+					.append(crit.getFieldName())
 					.append(" LIKE '%")
 					.append(crit.getStringValue() != null ? crit.getStringValue() : crit.getNumberValue())
 					.append("%'");
 					break;
 				case NOT_CONTAINS:
 					sb.append("BINARY ")
+					.append(tableAlias)
+					.append(".")
 					.append(crit.getFieldName())
 					.append(" NOT LIKE '%")
 					.append(crit.getStringValue() != null ? crit.getStringValue() : crit.getNumberValue())
 					.append("%'");
 					break;
 				case INOT_CONTAINS:
-					sb.append(crit.getFieldName())
+					sb.append(tableAlias)
+					.append(".")
+					.append(crit.getFieldName())
 					.append(" NOT LIKE '%")
 					.append(crit.getStringValue() != null ? crit.getStringValue() : crit.getNumberValue())
 					.append("%'");
 					break;
 				case EQUALS:
 					if (crit.getStringValue() != null) {
-						sb.append(crit.getFieldName())
+						sb.append(tableAlias)
+						.append(".")
+						.append(crit.getFieldName())
 						.append(" = '")
 						.append(crit.getStringValue())
 						.append("'");
 					}
 					else {
-						sb.append(crit.getFieldName())
+						sb.append(tableAlias)
+						.append(".")
+						.append(crit.getFieldName())
 						.append(" = ")
 						.append(crit.getNumberValue());
 					}
 					break;
 				case IEQUALS:
 					if (crit.getStringValue() != null) {
-						sb.append(crit.getFieldName())
+						sb.append(tableAlias)
+						.append(".")
+						.append(crit.getFieldName())
 						.append(" LIKE '")
 						.append(crit.getStringValue())
 						.append("'");
@@ -78,105 +93,148 @@ public class MySqlWherePart {
 					break;
 				case GREATER_OR_EQUAL:
 					if (crit.getStringValue() != null) {
-						sb.append(crit.getFieldName())
+						sb.append(tableAlias)
+						.append(".")
+						.append(crit.getFieldName())
 						.append(" >= '")
 						.append(crit.getStringValue())
 						.append("'");
 					}
 					else {
-						sb.append(crit.getFieldName())
+						sb.append(tableAlias)
+						.append(".")
+						.append(crit.getFieldName())
 						.append(" >= ")
 						.append(crit.getNumberValue());
 					}
 					break;
 				case GREATER_THAN:
 					if (crit.getStringValue() != null) {
-						sb.append(crit.getFieldName())
+						sb.append(tableAlias)
+						.append(".")
+						.append(crit.getFieldName())
 						.append(" > '")
 						.append(crit.getStringValue())
 						.append("'");
 					}
 					else {
-						sb.append(crit.getFieldName())
+						sb.append(tableAlias)
+						.append(".")
+						.append(crit.getFieldName())
 						.append(" > ")
 						.append(crit.getNumberValue());
 					}
 					break;
 				case LESS_OR_EQUAL:
 					if (crit.getStringValue() != null) {
-						sb.append(crit.getFieldName())
+						sb.append(tableAlias)
+						.append(".")
+						.append(crit.getFieldName())
 						.append(" <= '")
 						.append(crit.getStringValue())
 						.append("'");
 					}
 					else {
-						sb.append(crit.getFieldName())
+						sb.append(tableAlias)
+						.append(".")
+						.append(crit.getFieldName())
 						.append(" <= ")
 						.append(crit.getNumberValue());
 					}
 					break;
 				case LESS_THAN:
 					if (crit.getStringValue() != null) {
-						sb.append(crit.getFieldName())
+						sb.append(tableAlias)
+						.append(".")
+						.append(crit.getFieldName())
 						.append(" < '")
 						.append(crit.getStringValue())
 						.append("'");
 					}
 					else {
-						sb.append(crit.getFieldName())
+						sb.append(tableAlias)
+						.append(".")
+						.append(crit.getFieldName())
 						.append(" < ")
 						.append(crit.getNumberValue());
 					}
 					break;
 				case STARTS_WITH:
 					sb.append("BINARY ")
+					.append(tableAlias)
+					.append(".")
 					.append(crit.getFieldName())
 					.append(" LIKE '")
 					.append(crit.getStringValue() != null ? crit.getStringValue() : String.valueOf(crit.getNumberValue()))
 					.append("%'");
 					break;
 				case ISTARTS_WITH:
-					sb.append(crit.getFieldName())
+					sb.append(tableAlias)
+					.append(".")
+					.append(crit.getFieldName())
 					.append(" LIKE '")
 					.append(crit.getStringValue() != null ? crit.getStringValue() : String.valueOf(crit.getNumberValue()))
 					.append("%'");
 					break;
 				case INOT_STARTS_WITH:
-					sb.append(crit.getFieldName())
+					sb.append(tableAlias)
+					.append(".")
+					.append(crit.getFieldName())
 					.append(" NOT LIKE '")
 					.append(crit.getStringValue() != null ? crit.getStringValue() : String.valueOf(crit.getNumberValue()))
 					.append("%'");
 					break;
 				case ENDS_WITH:
 					sb.append("BINARY ")
+					.append(tableAlias)
+					.append(".")
 					.append(crit.getFieldName())
 					.append(" LIKE '%")
 					.append(crit.getStringValue() != null ? crit.getStringValue() : String.valueOf(crit.getNumberValue()))
 					.append("'");
 					break;
 				case IENDS_WITH:
-					sb.append(crit.getFieldName())
+					sb.append(tableAlias)
+					.append(".")
+					.append(crit.getFieldName())
 					.append(" LIKE '%")
 					.append(crit.getStringValue() != null ? crit.getStringValue() : String.valueOf(crit.getNumberValue()))
 					.append("'");
 					break;
 				case INOT_ENDS_WITH:
-					sb.append(crit.getFieldName())
+					sb.append(tableAlias)
+					.append(".")
+					.append(crit.getFieldName())
 					.append(" NOT LIKE '%")
 					.append(crit.getStringValue() != null ? crit.getStringValue() : String.valueOf(crit.getNumberValue()))
 					.append("'");
 					break;
 				case IS_BLANK:
 					sb.append('(')
+					.append(tableAlias)
+					.append(".")
 					.append(crit.getFieldName())
 					.append(" = '' OR ")
+					.append(tableAlias)
+					.append(".")
 					.append(crit.getFieldName())
 					.append(" IS NULL)");
 					break;
 				case NOT_BLANK:
 					sb.append('(')
+					.append(tableAlias)
+					.append(".")
 					.append(crit.getFieldName())
 					.append(" != '' AND ")
+					.append(tableAlias)
+					.append(".")
+					.append(crit.getFieldName())
+					.append(" IS NOT NULL)");
+					break;
+				case NOT_NULL:
+					sb.append('(')
+					.append(tableAlias)
+					.append(".")
 					.append(crit.getFieldName())
 					.append(" IS NOT NULL)");
 					break;
@@ -188,6 +246,7 @@ public class MySqlWherePart {
 			}
 			
 			sb.setLength(sb.length() - (adCrit.getOperator().getValue().length() + 2));	// remove last ' OperatorId '
+			sb.append(")");
 		}
 	}
 	

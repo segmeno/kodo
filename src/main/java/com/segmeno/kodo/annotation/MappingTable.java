@@ -9,5 +9,23 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 public @interface MappingTable {
 
+	/**
+	 * the name of the many-to-many table
+	 * @return
+	 */
 	String value() default "";
+	
+	/**
+	 * the name of the master table column in the many-to-many table.
+	 * Only required if the column name deviates from the name in the master table
+	 * @return
+	 */
+	String masterColumnName() default "";
+	
+	/**
+	 * the name of the joined table column in the many-to-many table
+	 * Only required if the column name deviates from the name in the joined table
+	 * @return
+	 */
+	String joinedColumnName() default "";
 }
