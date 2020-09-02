@@ -3,6 +3,7 @@ package com.segmeno.kodo.database.mysql;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import java.lang.annotation.Annotation;
 import java.sql.Driver;
 import java.sql.DriverManager;
 import java.util.ArrayList;
@@ -16,6 +17,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.mysql.cj.jdbc.MysqlDataSource;
+import com.segmeno.kodo.annotation.MappingTable;
 import com.segmeno.kodo.database.DatabaseEntity;
 import com.segmeno.kodo.database.Role;
 import com.segmeno.kodo.database.User;
@@ -63,18 +65,39 @@ public class MySqlManagerTest {
 		user.advancedCriteria = new AdvancedCriteria(OperatorId.AND, list1);
 		
 		final Role role = new Role();
+		role.mappingTable = new MappingTable() {
+			@Override
+			public Class<? extends Annotation> annotationType() {
+				return null;
+			}
+			@Override
+			public String value() {
+				return "tbUserRole";
+			}
+			@Override
+			public String masterColumnName() {
+				return "UserID";
+			}
+			@Override
+			public String joinedColumnName() {
+				return "RoleID";
+			}
+		};
 		role.advancedCriteria = new AdvancedCriteria(OperatorId.AND, list2);
 		
 		final List<DatabaseEntity> children = new ArrayList<>();
 		children.add(role);
 		
 		final String expectedQuery =
-				"SELECT tbUser.id AS tbUser_000_id, tbUser.userFirstName AS tbUser_000_userFirstName, " +
+				"SELECT tbUser.id AS tbUser_000_id, tbUser.userFirstName AS tbUser_000_userFirstName, " + 
 				"tbUser.userLastName AS tbUser_000_userLastName, tbUser.userSign AS tbUser_000_userSign, " +
-				"tbRole.id AS tbRole_000_id, tbRole.roleName AS tbRole_000_roleName, tbRole.description AS tbRole_000_description " + 
-				"FROM tbUser LEFT JOIN tbRole ON tbRole.id = tbUser.id " +
-				"WHERE (tbUser.ID = '1' and tbUser.UserSign LIKE '%s%') AND " +
-				"(tbRole.ID = '2' and tbRole.RoleName LIKE '%x%')";
+				"tbUser.userPassword AS tbUser_000_userPassword, tbUser.createdBy AS tbUser_000_createdBy, " + 
+				"tbUser.modifiedBy AS tbUser_000_modifiedBy, tbUser.flag AS tbUser_000_flag, tbRole.id AS tbRole_000_id, " +
+				"tbRole.roleName AS tbRole_000_roleName, tbRole.description AS tbRole_000_description " +
+				"FROM tbUser " +
+				"LEFT JOIN tbUserRole ON tbUserRole.UserID = tbUser.id " +
+				"LEFT JOIN tbRole ON tbRole.id = tbUserRole.RoleID " +
+				"WHERE (tbUser.ID = '1' and tbUser.UserSign LIKE '%s%') AND (tbRole.ID = '2' and tbRole.RoleName LIKE '%x%')";
 		
 		assertEquals("returned query does not match expected one",
 				expectedQuery,
