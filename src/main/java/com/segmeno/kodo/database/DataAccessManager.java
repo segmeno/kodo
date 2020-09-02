@@ -34,6 +34,11 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
 	protected JdbcTemplate jdbcTemplate;
 	protected NamedParameterJdbcTemplate namedParameterJdbcTemplate;
 	
+	private enum MappingTableBehaviour {
+		IGNORE,
+		REGARD
+	}
+	
 	protected abstract String getSelectQuery(DatabaseEntity mainEntity, List<DatabaseEntity> childEntitiesToJoin) throws Exception;
 	
 	protected abstract String getCountQuery(String sql) throws Exception;
@@ -88,7 +93,7 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
     				childEntity.fields.stream().forEach(childField -> colAliasToType.put(childEntity.getTableName() + tableColDelimiter + childField.getName(), childEntity.getClass()));
     				// check if there is an n:m mapping table specified via the annotation
     				if (f.getAnnotation(MappingTable.class) != null) {
-    					childEntity.mappingTable = f.getAnnotation(MappingTable.class);//  f.getAnnotation(MappingTable.class).value();
+    					childEntity.mappingTable = f.getAnnotation(MappingTable.class);
     				}
     				// check if there are filter settings for the child entity
     				if (filterByType.containsKey(genericType)) {
@@ -113,7 +118,7 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
 	 * @return a list of all entities, enriched with their child entities
 	 * @throws Exception
 	 */
-	private <T> List<T> collectResultEntities(List<Map<String,Object>> queryResult, Class<? extends DatabaseEntity> entityType, Map<String,Class<? extends DatabaseEntity>> colAliasToType) throws Exception {
+	protected <T> List<T> collectResultEntities(List<Map<String,Object>> queryResult, Class<? extends DatabaseEntity> entityType, Map<String,Class<? extends DatabaseEntity>> colAliasToType) throws Exception {
 		final Map<String,T> resultMap = new HashMap<String,T>();
 		for (Map<String,Object> rowMap : queryResult) {
 			try {
@@ -245,7 +250,6 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
     @SuppressWarnings("unchecked")
 	@Transactional(propagation = Propagation.REQUIRED)
     public <T> T addElem(DatabaseEntity obj) throws Exception {
-    	
     	final SimpleJdbcInsert insert = new SimpleJdbcInsert(dataSource)
 	            .withTableName(obj.getTableName())
 	            .usingGeneratedKeyColumns(obj.getPrimaryKeyColumn())
@@ -287,23 +291,10 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
     	namedParameterJdbcTemplate.update(updateQuery, obj.toMap());
     	
     	// check if there is a list of sub entities which also need to be added or updated
-    	for (Field f : obj.fields) {
-			// check if this is a list
-			if (List.class.isAssignableFrom(f.getType())) {
-    			final Type genericType = ((ParameterizedType) f.getGenericType()).getActualTypeArguments()[0];
-    			final Class<?> genericClass = Class.forName(genericType.getTypeName());
-    			// check if the list generic is of type DatabaseEntity
-    			if (DatabaseEntity.class.isAssignableFrom(genericClass)) {
-    				// if the child element is related via a many-to-many table, we must not update it
-    				// since it might be used by another element
-    				if (f.getAnnotation(MappingTable.class) != null) {
-    					continue;
-    				}
-    				final List<DatabaseEntity> list = (List<DatabaseEntity>)f.get(obj);
-    				for (DatabaseEntity child : list) {
-						updateElem(child);
-					}
-    			}
+		for (Map.Entry<Class<? extends DatabaseEntity>,List<DatabaseEntity>> entry : getAllChildEntities(obj, MappingTableBehaviour.IGNORE).entrySet()) {
+			final List<DatabaseEntity> elements = entry.getValue();
+			for (DatabaseEntity element : elements) {
+				updateElem(element);
 			}
 		}
     }
@@ -334,23 +325,10 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
 			return;
 		}
 		// check if there is a list of sub entities which need to be deleted first
-    	for (Field f : obj.fields) {
-			// check if this is a list
-			if (List.class.isAssignableFrom(f.getType())) {
-    			final Type genericType = ((ParameterizedType) f.getGenericType()).getActualTypeArguments()[0];
-    			final Class<?> genericClass = Class.forName(genericType.getTypeName());
-    			// check if the list generic is of type DatabaseEntity
-    			if (DatabaseEntity.class.isAssignableFrom(genericClass)) {
-    				// if the child element is related via a many-to-many table, we must not delete it
-    				// since it might still be used by another element
-    				if (f.getAnnotation(MappingTable.class) != null) {
-    					continue;
-    				}
-    				final List<DatabaseEntity> list = (List<DatabaseEntity>)f.get(obj);
-    				for (DatabaseEntity child : list) {
-						deleteElem(child);
-					}
-    			}
+		for (Map.Entry<Class<? extends DatabaseEntity>,List<DatabaseEntity>> entry : getAllChildEntities(obj, MappingTableBehaviour.IGNORE).entrySet()) {
+			final List<DatabaseEntity> elements = entry.getValue();
+			for (DatabaseEntity element : elements) {
+				deleteElem(element);
 			}
 		}
     	final String deleteQuery = getDeleteQuery(obj);
@@ -387,6 +365,64 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
     		sb.setLength(sb.length()-2);	// crop last comma
     	}
     	return sb.toString();
+    }
+    
+    /**
+     * returns all generic types of lists which are part of the main entity. So if a user has roles and accounts, the result would
+     * be a list with the role element and the account element
+     * @param mainEntity
+     * @param ignoreNmMappings
+     * @return
+     * @throws Exception
+     */
+    protected List<Class<? extends DatabaseEntity>> getChildTypes(DatabaseEntity mainEntity, MappingTableBehaviour mappingTableBehaviour) throws Exception {
+    	final List<Class<? extends DatabaseEntity>> result = new ArrayList<>();
+    	for (Field f : mainEntity.fields) {
+			// check if this is a list
+			if (List.class.isAssignableFrom(f.getType())) {
+    			final Type genericType = ((ParameterizedType) f.getGenericType()).getActualTypeArguments()[0];
+    			final Class<?> genericClass = Class.forName(genericType.getTypeName());
+    			// check if the list generic is of type DatabaseEntity
+    			if (DatabaseEntity.class.isAssignableFrom(genericClass)) {
+    				// if the child element is related via a many-to-many table, we need to check if it should be part of the result
+    				if (f.getAnnotation(MappingTable.class) != null && mappingTableBehaviour == MappingTableBehaviour.IGNORE) {
+    					continue;
+    				}
+    				result.add((Class<? extends DatabaseEntity>)genericClass);
+    			}
+			}
+    	}
+    	return result;
+    }
+    
+    /**
+     * returns a map which holds lists of all elements of the main entity. So if a user has roles and accounts, the result would
+     * be a map with all role elements and a list with all account elements, wrapped inside a list
+     * @param mainEntity
+     * @param ignoreNmMappings
+     * @return
+     * @throws Exception
+     */
+    protected Map<Class<? extends DatabaseEntity>,List<DatabaseEntity>> getAllChildEntities(DatabaseEntity mainEntity, MappingTableBehaviour mappingTableBehaviour) throws Exception {
+    	final Map<Class<? extends DatabaseEntity>,List<DatabaseEntity>> typeToEntries = new HashMap<>();
+    	
+    	for (Field f : mainEntity.fields) {
+			// check if this is a list
+			if (List.class.isAssignableFrom(f.getType())) {
+    			final Type genericType = ((ParameterizedType) f.getGenericType()).getActualTypeArguments()[0];
+    			final Class<?> genericClass = Class.forName(genericType.getTypeName());
+    			// check if the list generic is of type DatabaseEntity
+    			if (DatabaseEntity.class.isAssignableFrom(genericClass)) {
+    				// if the child element is related via a many-to-many table, we need to check if it should be part of the result
+    				if (f.getAnnotation(MappingTable.class) != null && mappingTableBehaviour == MappingTableBehaviour.IGNORE) {
+    					continue;
+    				}
+    				final List<DatabaseEntity> list = (List<DatabaseEntity>)f.get(mainEntity);
+    				typeToEntries.put((Class<? extends DatabaseEntity>)genericClass, list);
+    			}
+			}
+    	}
+    	return typeToEntries;
     }
     
 }

@@ -1,6 +1,7 @@
 package com.segmeno.kodo.database.mysql;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import java.sql.Driver;
 import java.sql.DriverManager;
@@ -11,6 +12,8 @@ import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.mysql.cj.jdbc.MysqlDataSource;
 import com.segmeno.kodo.database.DatabaseEntity;
@@ -92,7 +95,35 @@ public class MySqlManagerTest {
 						manager.getUpdateQuery("tbTest", "a = :1, b = :2", "TestID"));
 	}
 	
-	
+	/**** THE TESTS BELOW REQUIRE AN EXISTING MYSQL CONNECTION ****/
+//	
+//	@Test
+//	@Transactional(propagation = Propagation.REQUIRED)
+//	public void crudTest() throws Exception {
+//		
+//		User user = new User();
+//		user.userFirstName = "junit";
+//		user.userLastName = "test";
+//		user.userPassword = "123";
+//		user.userSign = "junit test";
+//		user.createdBy = "junit";
+//		user.modifiedBy = "junit";
+//		user.flag = 1;
+//		
+//		user = manager.addElem(user);
+//		List<User> users = manager.getElems(new Criteria("UserSign", OperatorId.EQUALS, "junit test"), User.class);
+//		assertTrue(users.size() == 1);
+//		
+//		user.userSign = "junitTest";
+//		manager.updateElem(user);
+//		users = manager.getElems(new Criteria("UserSign", OperatorId.EQUALS, "junitTest"), User.class);
+//		assertTrue(users.size() == 1);
+//		
+//		manager.deleteElem(user);
+//		users = manager.getElems(new Criteria("UserSign", OperatorId.EQUALS, "junitTest"), User.class);
+//		assertTrue(users.size() == 0);
+//	}
+//	
 //	@Test
 //	public void getElemsTest() throws Exception {
 //

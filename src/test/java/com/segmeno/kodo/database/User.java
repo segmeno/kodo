@@ -18,6 +18,14 @@ public class User extends DatabaseEntity {
 	
 	public String userSign;
 	
+	public String userPassword;
+	
+	public String createdBy;
+	
+	public String modifiedBy;
+	
+	public int flag;
+	
 	@MappingTable(value="tbUserRole", masterColumnName="UserID", joinedColumnName="RoleID")
 	public List<Role> roles = new ArrayList<Role>();
 	

@@ -142,11 +142,10 @@ public abstract class DatabaseEntity {
 	 * @throws Exception
 	 */
 	public void setId(Object id) throws Exception {
-		
-		if (primaryKey != null) {
-			primaryKey.set(this, id);
+		if (primaryKey == null) {
+			throw new Exception("Could not find primary key for entity '" + this.getClass().getName() +"'. Please use the '@PrimaryKey' annotation to mark a field as PrimaryKey!");			
 		}
-		throw new Exception("Could not find primary key for entity '" + this.getClass().getName() +"'. Please use the '@PrimaryKey' annotation to mark a field as PrimaryKey!");
+		primaryKey.set(this, id);
 	}
 	
 	/**
@@ -156,18 +155,18 @@ public abstract class DatabaseEntity {
 	 */
 	public Object getId() {
 		
-		if (primaryKey != null) {
-			try {
-				return primaryKey.get(this);
-			} catch (Exception e) {
-				final String msg = "error during search for primary key field";
-				LOGGER.error(msg);
-				throw new RuntimeException(msg);
-			}
+		if (primaryKey == null) {
+			final String msg = "Could not find primary key for entity '" + this.getClass().getName() +"'. Please use the '@PrimaryKey' annotation to mark a field as PrimaryKey!";
+			LOGGER.error(msg);
+			throw new RuntimeException(msg);
 		}
-		final String msg = "Could not find primary key for entity '" + this.getClass().getName() +"'. Please use the '@PrimaryKey' annotation to mark a field as PrimaryKey!";
-		LOGGER.error(msg);
-		throw new RuntimeException(msg);
+		try {
+			return primaryKey.get(this);
+		} catch (Exception e) {
+			final String msg = "error during search for primary key field";
+			LOGGER.error(msg);
+			throw new RuntimeException(msg);
+		}
 	}
 	
 	/**

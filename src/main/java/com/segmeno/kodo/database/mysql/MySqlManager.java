@@ -72,7 +72,7 @@ public class MySqlManager extends DataAccessManager {
 
 	@Override
 	protected String getDeleteQuery(DatabaseEntity mainEntity) throws Exception {
-		return "DELETE FROM " + mainEntity.getTableName() + " WHERE " + mainEntity.getPrimaryKeyColumn() + " = ?)";
+		return "DELETE FROM " + mainEntity.getTableName() + " WHERE " + mainEntity.getPrimaryKeyColumn() + " = ?";
 	}
 
 }
