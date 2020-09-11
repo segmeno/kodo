@@ -7,24 +7,24 @@ import java.lang.annotation.Target;
 
 @Target({ElementType.ANNOTATION_TYPE, ElementType.METHOD, ElementType.CONSTRUCTOR, ElementType.FIELD})
 @Retention(RetentionPolicy.RUNTIME)
-public @interface MappingTable {
+public @interface MappingRelation {
 
 	/**
-	 * the name of the many-to-many table
+	 * the name of the many-to-many table. If the relation is one-to-many, this field can be left blank
 	 * @return
 	 */
-	String value() default "";
+	String mappingTableName() default "";
 	
 	/**
-	 * the name of the master table column in the many-to-many table.
-	 * Only required if the column name deviates from the name in the master table
+	 * the name of the main table column in the many-to-many table.
+	 * If the relation is one-to-many, this refers to the primary key field of the main table
 	 * @return
 	 */
 	String masterColumnName() default "";
 	
 	/**
 	 * the name of the joined table column in the many-to-many table
-	 * Only required if the column name deviates from the name in the joined table
+	 * If the relation is one-to-many, this refers to the primary key field of the joined table
 	 * @return
 	 */
 	String joinedColumnName() default "";

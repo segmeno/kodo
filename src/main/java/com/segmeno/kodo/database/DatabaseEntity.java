@@ -1,9 +1,6 @@
 package com.segmeno.kodo.database;
 
 import java.lang.reflect.Field;
-import java.sql.Timestamp;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
@@ -15,22 +12,15 @@ import org.apache.log4j.Logger;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.segmeno.kodo.annotation.DbIgnore;
-import com.segmeno.kodo.annotation.MappingTable;
+import com.segmeno.kodo.annotation.MappingRelation;
 import com.segmeno.kodo.annotation.PrimaryKey;
-import com.segmeno.kodo.transport.AdvancedCriteria;
 
 public abstract class DatabaseEntity {
 	
-	
 	private static final Logger LOGGER = Logger.getLogger(DatabaseEntity.class);
-	public static final String MYSQL_DATETIME_FORMAT = "yyyy-MM-dd hHH:mm:ss";
-	
-	// if this entity has a many-to-many relation to another entity, we retrieve information of the mapping table and fill it here
-	public transient MappingTable mappingTable;
-	// if a search query has been triggered and there are filters set, we temporarily use this field to transfer them
-	public AdvancedCriteria advancedCriteria;
-	
-	private static final SimpleDateFormat FORMATTER = new SimpleDateFormat(MYSQL_DATETIME_FORMAT);
+	// to be used within kodo framework only
+	@SuppressWarnings("unused")
+	private String tableAlias;
 	private Field primaryKey;
 	
 	final transient List<Field> fields = new ArrayList<Field>();
@@ -62,17 +52,13 @@ public abstract class DatabaseEntity {
 	public List<String> getColumnNames(boolean includePrimaryKeyColumn) throws Exception {
 		final List<String> cols = new ArrayList<>();
 		for (Field f : fields) {
-			if ((!includePrimaryKeyColumn && f.getAnnotation(PrimaryKey.class) != null) || Collection.class.isAssignableFrom(f.getType())) {
+			if ((!includePrimaryKeyColumn && f.getAnnotation(PrimaryKey.class) != null) || 
+					Collection.class.isAssignableFrom(f.getType()) || f.getAnnotation(MappingRelation.class) != null) {
 				continue;
 			}
 			cols.add(f.getName());
 		}
 		return cols;
-//		return fields.stream()
-//				.filter(f -> !includePrimaryKeyColumn || 
-//							f.getAnnotation(PrimaryKey.class) != null ||
-//			 				Collection.class.isAssignableFrom(f.getType()))
-//				.toArray(String[]::new);
 	};
 	
 	/**
@@ -83,6 +69,9 @@ public abstract class DatabaseEntity {
 	public Map<String, Object> toMap() throws Exception {
 		final Map<String,Object> map = new HashMap<String,Object>();
 		for (Field f : fields) {
+			if (List.class.isAssignableFrom(f.getType())) {
+				continue;
+			}
 			map.put(f.getName().toLowerCase(), f.get(this));
 		}
 		return map;		
@@ -116,32 +105,12 @@ public abstract class DatabaseEntity {
 	}
 	
 	/**
-	 * casts a date object into the correct datatype
-	 * 
-	 * @param o
-	 * @return the cast date
-	 */
-	public Date getDate(Object o) {
-		if (o instanceof Timestamp) {
-			return new Date(((Timestamp)o).getTime());
-		}
-		if (o instanceof String) {
-			try {
-				return FORMATTER.parse((String)o);
-			} catch (ParseException e) {
-				LOGGER.error("can not parse date. Expected format: " + MYSQL_DATETIME_FORMAT + ", value is " + o, e);
-			}
-		}
-		return null;
-	}
-	
-	/**
 	 * sets the primary key field
 	 * 
 	 * @param id
 	 * @throws Exception
 	 */
-	public void setId(Object id) throws Exception {
+	public void setPrimaryKeyValue(Object id) throws Exception {
 		if (primaryKey == null) {
 			throw new Exception("Could not find primary key for entity '" + this.getClass().getName() +"'. Please use the '@PrimaryKey' annotation to mark a field as PrimaryKey!");			
 		}
@@ -153,7 +122,7 @@ public abstract class DatabaseEntity {
 	 * 
 	 * @return
 	 */
-	public Object getId() {
+	public Object getPrimaryKeyValue() {
 		
 		if (primaryKey == null) {
 			final String msg = "Could not find primary key for entity '" + this.getClass().getName() +"'. Please use the '@PrimaryKey' annotation to mark a field as PrimaryKey!";

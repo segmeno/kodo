@@ -4,6 +4,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -18,34 +19,25 @@ import org.springframework.jdbc.core.simple.SimpleJdbcInsert;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.segmeno.kodo.annotation.DbIgnore;
-import com.segmeno.kodo.annotation.MappingTable;
-import com.segmeno.kodo.annotation.PrimaryKey;
+import com.segmeno.kodo.annotation.MappingRelation;
 import com.segmeno.kodo.transport.AdvancedCriteria;
 import com.segmeno.kodo.transport.Criteria;
 import com.segmeno.kodo.transport.OperatorId;
 
-public abstract class DataAccessManager {
+public class DataAccessManager {
 
 protected final static Logger log = Logger.getLogger(DataAccessManager.class);
 	
-	protected String tableColDelimiter = "_000_";
+	protected String tableColDelimiter = ".";
 	protected DataSource dataSource;
 	protected JdbcTemplate jdbcTemplate;
 	protected NamedParameterJdbcTemplate namedParameterJdbcTemplate;
+	protected int fetchDepth = -1;
 	
 	private enum MappingTableBehaviour {
 		IGNORE,
 		REGARD
 	}
-	
-	protected abstract String getSelectQuery(DatabaseEntity mainEntity, List<DatabaseEntity> childEntitiesToJoin) throws Exception;
-	
-	protected abstract String getCountQuery(String sql) throws Exception;
-	
-	protected abstract String getUpdateQuery(String tableName, String params, String primaryKeyColumn) throws Exception;
-	
-	protected abstract String getDeleteQuery(DatabaseEntity mainEntity) throws Exception;
 	
 	public JdbcTemplate getJdbcTemplate() {
 		return jdbcTemplate;
@@ -64,125 +56,13 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
 	}
 	
 	/**
-	 * creates the select query by analyzing the main entity and joining child elements if present. is also considering passed in criterias 
-	 * @param filterByType a map which allows filtering for each entity type related to the main entity type. If the main entity is 'user' with a list of 'roles', the roles
-	 * entity will be joined on the user entity 
-	 * 
-	 * @param entityType the main entity type
-	 * @param colAliasToType the column alias mapped to the entity type. Used for joins
-	 * @return
-	 * @throws Exception
-	 */
-	private String buildSelect(Map<Class<? extends DatabaseEntity>, AdvancedCriteria> filterByType, Class<? extends DatabaseEntity> entityType, Map<String,Class<? extends DatabaseEntity>> colAliasToType) throws Exception {
-		final DatabaseEntity mainEntity = entityType.getConstructor().newInstance();
-    	// check if there is a filter set for the main entity. If so, enrich the private 'Advanced Criteria' field
-    	if (filterByType.containsKey(entityType)) {
-    		mainEntity.advancedCriteria = filterByType.get(entityType);
-    	}
-    	final List<DatabaseEntity> childEntitiesToJoin = new ArrayList<>();
-    	
-    	for (Field f : mainEntity.fields) {
-    		// check if one of the main entities fields is a represented by another table (typically a list)
-    		if (List.class.isAssignableFrom(f.getType())) {
-    			final Type genericType = ((ParameterizedType) f.getGenericType()).getActualTypeArguments()[0];
-    			final Class<?> genericClass = Class.forName(genericType.getTypeName());
-    			// check if the list generic is of type DatabaseEntity
-    			if (DatabaseEntity.class.isAssignableFrom(genericClass)) {
-    				final DatabaseEntity childEntity = (DatabaseEntity)genericClass.getConstructor().newInstance();
-    				// store the column names of the child entity
-    				childEntity.fields.stream().forEach(childField -> colAliasToType.put(childEntity.getTableName() + tableColDelimiter + childField.getName(), childEntity.getClass()));
-    				// check if there is an n:m mapping table specified via the annotation
-    				if (f.getAnnotation(MappingTable.class) != null) {
-    					childEntity.mappingTable = f.getAnnotation(MappingTable.class);
-    				}
-    				// check if there are filter settings for the child entity
-    				if (filterByType.containsKey(genericType)) {
-    					childEntity.advancedCriteria = filterByType.get(genericType);
-    				}
-    				childEntitiesToJoin.add(childEntity);
-    			}
-    		}
-    		else {
-    			// store the column names of the main entity
-    			colAliasToType.put(mainEntity.getTableName() + tableColDelimiter + f.getName(), entityType);
-    		}
-    	}
-    	return getSelectQuery(mainEntity, childEntitiesToJoin);
-	}
-	
-	/**
-	 * iterates the query result and stuffs all child entities into the appropriate parent entities. Then returns them as a list
-	 * @param queryResult the result of the database query
-	 * @param entityType the main entity type which will be enriched with the child entities if there are any
-	 * @param colAliasToType a map which holds information about which column alias belongs to which entity type
-	 * @return a list of all entities, enriched with their child entities
-	 * @throws Exception
-	 */
-	protected <T> List<T> collectResultEntities(List<Map<String,Object>> queryResult, Class<? extends DatabaseEntity> entityType, Map<String,Class<? extends DatabaseEntity>> colAliasToType) throws Exception {
-		final Map<String,T> resultMap = new HashMap<String,T>();
-		for (Map<String,Object> rowMap : queryResult) {
-			try {
-				// keep track of the already created objects
-				final Map<String,Object> tableToEntity = new HashMap<>();
-				// separate the columns per entity
-				DatabaseEntity entity;
-				for (Map.Entry<String,Object> entry : rowMap.entrySet()) {
-					final String colAlias = entry.getKey();
-					final String tableName = colAlias.substring(0, colAlias.indexOf(tableColDelimiter));
-					final String colName = colAlias.substring(colAlias.indexOf(tableColDelimiter)+tableColDelimiter.length());
-					if (!tableToEntity.containsKey(tableName)) {
-						entity = colAliasToType.get(colAlias).getConstructor().newInstance();
-						final Field f = entity.fields.stream().filter(field -> field.getName().equals(colName)).findAny().orElse(null);
-						f.set(entity, entry.getValue());
-						tableToEntity.put(tableName, entity);
-					}
-					else {
-						entity = (DatabaseEntity)tableToEntity.get(tableName);
-						final Field f = entity.fields.stream().filter(field -> field.getName().equals(colName)).findAny().orElse(null);
-						f.set(entity, entry.getValue());
-					}
-				}
-				// now stuff the child entities into the main entity and add it all to the overall result
-				DatabaseEntity mainObject = (DatabaseEntity)tableToEntity.values().stream().filter(obj -> obj.getClass().getSimpleName().equals(entityType.getSimpleName())).findFirst().orElse(null);
-				final String pk = String.valueOf(mainObject.getId());
-				// due to joins, the main object can repeat itself several times. Therefore we need to check if it is already member of the result
-				if (resultMap.containsKey(pk)) {
-					mainObject = (DatabaseEntity)resultMap.get(pk);
-				}
-				
-				for (Field f : mainObject.fields) {
-					// this is a list of sub entities
-					if (List.class.isAssignableFrom(f.getType())) {
-						final List list = (List)f.get(mainObject);
-						final Type genericType = ((ParameterizedType) f.getGenericType()).getActualTypeArguments()[0];
-						// fill list
-						for (Map.Entry<String,Object> entry : tableToEntity.entrySet()) {
-							if (entry.getValue().getClass().getName().equals(genericType.getTypeName())) {
-								DatabaseEntity childObject = (DatabaseEntity)entry.getValue();
-								list.add(childObject);
-							}
-						}
-						f.set(mainObject, list);
-					}
-				}
-				if (!resultMap.containsKey(pk)) {
-					resultMap.put(pk, (T)mainObject);
-				}
-			} catch (Exception e) {
-				log.error("could not instantiate object of type " + entityType.getName(), e);
-			}
-    	}
-		return resultMap.values().stream().collect(Collectors.toList());
-	}
-	
-	/**
 	 * returns all entities of entityType by performing a simple select without any filters
 	 * @param entityType
 	 * @return
 	 * @throws Exception
 	 */
 	public <T> List<T> getElems(Class<? extends DatabaseEntity> entityType) throws Exception {
-		return getElems(new HashMap<Class<? extends DatabaseEntity>, AdvancedCriteria>(), entityType);
+		return getElems((AdvancedCriteria)null, entityType);
 	}
 	
 	/**
@@ -193,9 +73,7 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
 	 * @throws Exception
 	 */
 	public <T> List<T> getElems(Criteria criteria, Class<? extends DatabaseEntity> entityType) throws Exception {
-    	final Map<Class<? extends DatabaseEntity>, AdvancedCriteria> filterByType = new HashMap<>();
-    	filterByType.put(entityType, new AdvancedCriteria(OperatorId.AND, criteria));
-    	return getElems(filterByType, entityType);
+    	return getElems(new AdvancedCriteria(OperatorId.AND, criteria), entityType);
     }
 	
 	/**
@@ -206,47 +84,120 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
 	 * @throws Exception
 	 */
 	public <T> List<T> getElems(AdvancedCriteria advancedCriteria, Class<? extends DatabaseEntity> entityType) throws Exception {
-    	final Map<Class<? extends DatabaseEntity>, AdvancedCriteria> filterByType = new HashMap<>();
-    	filterByType.put(entityType, advancedCriteria);
-    	return getElems(filterByType, entityType);
-    }
-    
-	/**
-	 * returns a list of the queried entity type, considering criterias for filtering
-	 * @param filterByType a map which allows filtering for each entity type related to the main entity type. If the main entity is 'user' with a list of 'roles', the roles
-	 * entity will be joined on the user entity 
-	 * @param entityType the main entity type to query
-	 * 
-	 * @return
-	 * @throws Exception
-	 */
-	public <T> List<T> getElems(Map<Class<? extends DatabaseEntity>, AdvancedCriteria> filterByType, Class<? extends DatabaseEntity> entityType) throws Exception {
-    	// to be able to fill the result into the main entity and the child entities, we first need to know which field belongs to which entity
-		final Map<String,Class<? extends DatabaseEntity>> colAliasToType = new HashMap<>();
-		final String selectQuery = buildSelect(filterByType, entityType, colAliasToType);
-    	log.debug("Query: " + selectQuery);
-    	final List<Map<String,Object>> queryResult = jdbcTemplate.queryForList(selectQuery);
-    	return collectResultEntities(queryResult, entityType, colAliasToType);
-    }
 
-    public Integer getElemCount(Class<? extends DatabaseEntity> entityType) throws Exception {
-    	return getElemCount((Map<Class<? extends DatabaseEntity>, AdvancedCriteria>)null, entityType);
-    }
-    
-    public Integer getElemCount(Criteria criteria, Class<? extends DatabaseEntity> entityType) throws Exception {
-    	final Map<Class<? extends DatabaseEntity>, AdvancedCriteria> filterMap = new HashMap<>();
-    	filterMap.put(entityType, new AdvancedCriteria(OperatorId.AND, criteria));
-    	return getElemCount(filterMap, entityType);
+		final List<Object> params = new ArrayList<Object>();
+		final DatabaseEntity mainEntity = entityType.getConstructor().newInstance();
+    	final String query = buildQuery(mainEntity, advancedCriteria, params);
+    	
+    	log.debug("Query: " + sqlPrettyPrint(query) + "\t\t" + params);
+		final List<Map<String,Object>> rows = jdbcTemplate.queryForList(query, params.toArray());
+		return rowsToObjects(mainEntity, rows);
     }
 	
-	public Integer getElemCount(Map<Class<? extends DatabaseEntity>, AdvancedCriteria> filterByType, Class<? extends DatabaseEntity> entityType) throws Exception {
-		final Map<String,Class<? extends DatabaseEntity>> colAliasToType = new HashMap<>();
-		final String selectQuery = buildSelect(filterByType, entityType, colAliasToType);
-		final String countQuery = getCountQuery(selectQuery);
-		log.debug("Query: " + countQuery);
-    	return jdbcTemplate.queryForObject(countQuery, Integer.class);
+	private <T> List<T> rowsToObjects(DatabaseEntity baseEntity, List<Map<String, Object>> rows) throws Exception {
+		final Map<String,T> resultMap = new HashMap<String,T>();
+		
+		final Map<String,Object> alreadyFilledObjects = new HashMap<String, Object>();
+		String pk;
+		
+		for (Map<String,Object> row : rows) {
+			
+			pk = String.valueOf(getValueFromRow(baseEntity.getTableName(), baseEntity.getPrimaryKeyColumn(), row));
+			if (!resultMap.containsKey(pk)) {
+				baseEntity = baseEntity.getClass().getConstructor().newInstance();
+				alreadyFilledObjects.clear();
+			}
+			rowToEntity(baseEntity, baseEntity.getTableName(), row, alreadyFilledObjects);
+			resultMap.put(pk, (T)baseEntity);
+		}
+		return resultMap.values().stream().collect(Collectors.toList());
+	}
+	
+	private void rowToEntity(DatabaseEntity entity, String childAlias, Map<String,Object> row, Map<String,Object> alreadyFilledObjects) throws Exception {
+		
+		// first thing to do: retrieve pk value and build unique key
+		final String pk = String.valueOf(getValueFromRow(childAlias, entity.getPrimaryKeyColumn(), row));
+		final String uniqueKey = childAlias + "#" + pk;
+		
+		for (Field field : entity.fields) {
+			// search for child entities
+			if (field.getAnnotation(MappingRelation.class) != null) {
+				final DatabaseEntity childEntity;
+				
+				if (List.class.isAssignableFrom(field.getType())) {
+					final Type genericType = ((ParameterizedType) field.getGenericType()).getActualTypeArguments()[0];
+	    			final Class<?> genericClass = Class.forName(genericType.getTypeName());
+	    			childEntity = (DatabaseEntity)genericClass.getConstructor().newInstance();
+	    			childAlias = entity.getTableName() + "_" + field.getName();
+	    			String childPk = String.valueOf(getValueFromRow(childAlias, childEntity.getPrimaryKeyColumn(), row));
+	    			String childUniqueKey = childAlias + "#" + childPk;
+	    			
+					if (!alreadyFilledObjects.containsKey(childUniqueKey)) {
+						final List<DatabaseEntity> list = (List)field.get(entity);
+						list.add(childEntity);
+						field.set(entity, list);
+						rowToEntity(childEntity, childAlias, row, alreadyFilledObjects);
+					}
+				}
+				else if (DatabaseEntity.class.isAssignableFrom(field.getType())) {
+					childEntity = (DatabaseEntity)field.getType().getConstructor().newInstance();
+					field.set(entity, childEntity);
+					childAlias = entity.getTableName() + "_" + field.getName();
+					if (!alreadyFilledObjects.containsKey(uniqueKey)) {
+						rowToEntity(childEntity, childAlias, row, alreadyFilledObjects);
+					}
+				}
+			}
+			// search for the field and fill it
+			else {
+				for (Map.Entry<String, Object> cell : row.entrySet()) {
+					final String fullName = cell.getKey();
+					final String entityField = childAlias + tableColDelimiter + field.getName();
+					
+					if (fullName.equals(entityField)) {
+						field.set(entity, cell.getValue());
+						break;
+					}
+				}
+			}
+		}
+		alreadyFilledObjects.put(uniqueKey, entity);
+	}
+	
+	private Object getValueFromRow(String alias, String fieldName, Map<String,Object> row) {
+		fieldName = alias + tableColDelimiter + fieldName;
+		for (Map.Entry<String, Object> cell : row.entrySet()) {
+			if (cell.getKey().equals(fieldName)) {
+				return cell.getValue();
+			}
+		}
+		return null;
+	}
+
+    public Long getElemCount(Class<? extends DatabaseEntity> entityType) throws Exception {
+    	return getElemCount((AdvancedCriteria)null, entityType);
     }
-   
+    
+    public Long getElemCount(Criteria criteria, Class<? extends DatabaseEntity> entityType) throws Exception {
+    	return getElemCount(new AdvancedCriteria(OperatorId.AND, criteria), entityType);
+    }
+    
+    public Long getElemCount(AdvancedCriteria criteria, Class<? extends DatabaseEntity> entityType) throws Exception {
+    	final DatabaseEntity mainEntity = entityType.getConstructor().newInstance();
+
+		final List<Object> params = new ArrayList<Object>();
+		final StringBuilder select = new StringBuilder();
+		final StringBuilder from = new StringBuilder();
+		final StringBuilder join = new StringBuilder();
+		final StringBuilder where = new StringBuilder();
+		buildQueryRecursively(mainEntity, criteria, select, from, join, where, params, 0);
+		
+		final String sql = "SELECT COUNT (DISTINCT " + mainEntity.getTableName() + "." + mainEntity.getPrimaryKeyColumn() + ")" + from.toString() + join.toString() + where.toString();
+		
+		log.debug("Query: " + sqlPrettyPrint(sql) + "\t[" + toCsv(params.toArray()) + "]");
+		return jdbcTemplate.queryForObject(sql, params.toArray(), Long.class);
+    }
+	
     @SuppressWarnings("unchecked")
 	@Transactional(propagation = Propagation.REQUIRED)
     public <T> T addElem(DatabaseEntity obj) throws Exception {
@@ -255,9 +206,14 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
 	            .usingGeneratedKeyColumns(obj.getPrimaryKeyColumn())
 	            .usingColumns(obj.getColumnNames(false).toArray(new String[0]));
     	
-    	final Number key = insert.executeAndReturnKey(obj.toMap());
-    	obj.setId(key.intValue());
-    	
+    	try {
+			final Number key = insert.executeAndReturnKey(obj.toMap());
+			obj.setPrimaryKeyValue(key.intValue());
+		} catch (Exception e) {
+			log.warn("could not insert " + obj.getClass().getSimpleName()+ ": " + e.getMessage());
+			log.warn("trying alternative method");
+			obj.setPrimaryKeyValue(jdbcTemplate.queryForObject("SELECT MAX( " + obj.getPrimaryKeyColumn() + ") FROM " + obj.getTableName(), Long.class));
+		}
     	return (T)obj;
     }
     
@@ -270,33 +226,30 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
     
     @Transactional(propagation = Propagation.REQUIRED)
 	public void updateElem(DatabaseEntity obj) throws Exception {
-    	if (obj.getId()== null || Integer.valueOf(String.valueOf(obj.getId())) == -1) {
+    	if (obj.getPrimaryKeyValue()== null || Integer.valueOf(String.valueOf(obj.getPrimaryKeyValue())) == -1) {
 			addElem(obj);
-			return;
 		}
-    	
-    	// first, update the main entity
-    	final StringBuilder sb = new StringBuilder();
-    	for (Field f : obj.getClass().getDeclaredFields()) {
-    		if (f.getAnnotation(DbIgnore.class) != null || f.getAnnotation(PrimaryKey.class) != null || List.class.isAssignableFrom(f.getType())) {
-    			continue;
+    	else {
+    		// first, update the main entity
+    		final StringBuilder sb = new StringBuilder();
+    		for (String col : obj.getColumnNames(false)) {
+    			sb.append(col.toLowerCase()).append(" = :").append(col.toLowerCase()).append(", ");
+        	}
+        	if (sb.length() > 1) {
+        		sb.setLength(sb.length()-2);	// crop last comma
+        	}
+        	final String stmt = "UPDATE " + obj.getTableName() + " SET " + sb.toString() + " WHERE " + obj.getPrimaryKeyColumn() + " = :" + obj.getPrimaryKeyColumn();
+        	log.debug("Query: " + sqlPrettyPrint(stmt) + "\t\t[" + toCsv(obj.toMap().values()) + "]");
+        	namedParameterJdbcTemplate.update(stmt, obj.toMap());
+        	
+        	// check if there is a list of sub entities which also need to be added or updated
+    		for (Map.Entry<Class<? extends DatabaseEntity>,List<DatabaseEntity>> entry : getAllChildEntities(obj, MappingTableBehaviour.IGNORE).entrySet()) {
+    			final List<DatabaseEntity> elements = entry.getValue();
+    			for (DatabaseEntity element : elements) {
+    				updateElem(element);
+    			}
     		}
-    		sb.append(f.getName().toLowerCase()).append(" = :").append(f.getName().toLowerCase()).append(", ");
     	}
-    	if (sb.length() > 1) {
-    		sb.setLength(sb.length()-2);	// crop last comma
-    	}
-    	final String updateQuery = getUpdateQuery(obj.getTableName(), sb.toString(), obj.getPrimaryKeyColumn().toLowerCase());
-    	log.debug("Query: " + updateQuery);
-    	namedParameterJdbcTemplate.update(updateQuery, obj.toMap());
-    	
-    	// check if there is a list of sub entities which also need to be added or updated
-		for (Map.Entry<Class<? extends DatabaseEntity>,List<DatabaseEntity>> entry : getAllChildEntities(obj, MappingTableBehaviour.IGNORE).entrySet()) {
-			final List<DatabaseEntity> elements = entry.getValue();
-			for (DatabaseEntity element : elements) {
-				updateElem(element);
-			}
-		}
     }
     
     /**
@@ -320,20 +273,21 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
      */
 	@Transactional(propagation = Propagation.REQUIRED)
 	public void deleteElem(DatabaseEntity obj) throws Exception {
-		if (obj.getId()== null || Integer.valueOf(String.valueOf(obj.getId())) == -1) {
+		if (obj.getPrimaryKeyValue()== null || Integer.valueOf(String.valueOf(obj.getPrimaryKeyValue())) == -1) {
 			log.warn("could not delete " + obj.getClass().getSimpleName() + ": no primary key set");
-			return;
 		}
-		// check if there is a list of sub entities which need to be deleted first
-		for (Map.Entry<Class<? extends DatabaseEntity>,List<DatabaseEntity>> entry : getAllChildEntities(obj, MappingTableBehaviour.IGNORE).entrySet()) {
-			final List<DatabaseEntity> elements = entry.getValue();
-			for (DatabaseEntity element : elements) {
-				deleteElem(element);
+		else {
+			// check if there is a list of sub entities which need to be deleted first
+			for (Map.Entry<Class<? extends DatabaseEntity>,List<DatabaseEntity>> entry : getAllChildEntities(obj, MappingTableBehaviour.IGNORE).entrySet()) {
+				final List<DatabaseEntity> elements = entry.getValue();
+				for (DatabaseEntity element : elements) {
+					deleteElem(element);
+				}
 			}
+			final String stmt = "DELETE FROM " + obj.getTableName() + " WHERE " + obj.getPrimaryKeyColumn() + " = ?";
+			log.debug("Query: " + sqlPrettyPrint(stmt) + "\t\t[" + obj.getPrimaryKeyValue() + "]");
+			jdbcTemplate.update(stmt, obj.getPrimaryKeyValue());
 		}
-    	final String deleteQuery = getDeleteQuery(obj);
-    	log.debug("Query: " + deleteQuery);
-    	jdbcTemplate.update(deleteQuery, obj.getId());
 	}
     
 //    /**
@@ -355,44 +309,28 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
 		return sb.toString();
 	}
     
+    protected String toCsv(Collection<Object> values) {
+    	final StringBuilder sb = new StringBuilder();
+		for (final Object t : values) {
+			sb.append(t).append(",");
+		}
+		if(sb.length() > 0) {
+			sb.setLength(sb.length()-1); // crop last comma
+		}
+		return sb.toString();
+	}
+    
     protected String getColumnsCsvWithAlias(String tableAlias, List<String> cols) {
     	final StringBuilder sb = new StringBuilder();
     	for (String col : cols) {
-    		final String s = tableAlias + "." + col + " AS " + tableAlias + tableColDelimiter + col;
+    		final String s;
+			s = tableAlias + "." + col + " AS \"" + tableAlias + tableColDelimiter + col + "\"";
     		sb.append(s).append(", ");
     	}
     	if (sb.length()>2) {
     		sb.setLength(sb.length()-2);	// crop last comma
     	}
     	return sb.toString();
-    }
-    
-    /**
-     * returns all generic types of lists which are part of the main entity. So if a user has roles and accounts, the result would
-     * be a list with the role element and the account element
-     * @param mainEntity
-     * @param ignoreNmMappings
-     * @return
-     * @throws Exception
-     */
-    protected List<Class<? extends DatabaseEntity>> getChildTypes(DatabaseEntity mainEntity, MappingTableBehaviour mappingTableBehaviour) throws Exception {
-    	final List<Class<? extends DatabaseEntity>> result = new ArrayList<>();
-    	for (Field f : mainEntity.fields) {
-			// check if this is a list
-			if (List.class.isAssignableFrom(f.getType())) {
-    			final Type genericType = ((ParameterizedType) f.getGenericType()).getActualTypeArguments()[0];
-    			final Class<?> genericClass = Class.forName(genericType.getTypeName());
-    			// check if the list generic is of type DatabaseEntity
-    			if (DatabaseEntity.class.isAssignableFrom(genericClass)) {
-    				// if the child element is related via a many-to-many table, we need to check if it should be part of the result
-    				if (f.getAnnotation(MappingTable.class) != null && mappingTableBehaviour == MappingTableBehaviour.IGNORE) {
-    					continue;
-    				}
-    				result.add((Class<? extends DatabaseEntity>)genericClass);
-    			}
-			}
-    	}
-    	return result;
     }
     
     /**
@@ -414,7 +352,7 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
     			// check if the list generic is of type DatabaseEntity
     			if (DatabaseEntity.class.isAssignableFrom(genericClass)) {
     				// if the child element is related via a many-to-many table, we need to check if it should be part of the result
-    				if (f.getAnnotation(MappingTable.class) != null && mappingTableBehaviour == MappingTableBehaviour.IGNORE) {
+    				if (f.getAnnotation(MappingRelation.class) != null && mappingTableBehaviour == MappingTableBehaviour.IGNORE) {
     					continue;
     				}
     				final List<DatabaseEntity> list = (List<DatabaseEntity>)f.get(mainEntity);
@@ -424,5 +362,124 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
     	}
     	return typeToEntries;
     }
+
+	/**
+	 * builds a query from the entity and given filters
+	 * @param entity - the main entity
+	 * @param filter - criteria(s) to filter on the main entity
+	 * @param params - this list will be filled by the algorithm
+	 * @return
+	 * @throws Exception
+	 */
+	protected String buildQuery(DatabaseEntity entity, AdvancedCriteria filter, List<Object> params) throws Exception {
+		final StringBuilder select = new StringBuilder();
+		final StringBuilder from = new StringBuilder();
+		final StringBuilder join = new StringBuilder();
+		final StringBuilder where = new StringBuilder();
+		buildQueryRecursively(entity, filter, select, from, join, where, params, 0);
+		return select.toString() + from.toString() + join.toString() + where.toString();
+	}
+	
+	private void buildQueryRecursively(DatabaseEntity entity, AdvancedCriteria filter, StringBuilder select, StringBuilder from, StringBuilder join, StringBuilder where, List<Object> params, int currentDepth) throws Exception {
+		if (select.length() == 0) {
+			select.append("SELECT " + getColumnsCsvWithAlias(entity.getTableName(), entity.getColumnNames(true)));
+			from.append(" FROM " + entity.getTableName());
+			if (filter != null && !filter.getCriterias().isEmpty()) {
+				final WherePart wp = new WherePart(entity.getTableName(), filter);
+				params.addAll(wp.getValues());
+				where.append(" WHERE " + wp.toString());
+			}
+		}
+		currentDepth++;
+		
+		final Field aliasField = findField(entity.getClass(), "tableAlias");
+		final String entityTableAlias;
+		// always true for the main entity
+		if (aliasField.get(entity) == null) {
+			entityTableAlias = entity.getTableName();
+		}
+		else {
+			entityTableAlias = String.valueOf(aliasField.get(entity));
+		}
+		 
+		for (Field field : entity.fields) {
+			// only join children to the select if they are annotated with the MappingRelation annotation
+			if (field.getAnnotation(MappingRelation.class) != null) {
+				// if this child element position exceeds the maximum depth of the joins, we do not fetch it 
+				if (fetchDepth != -1 && currentDepth > fetchDepth) {
+					continue;
+				}
+				final MappingRelation relation = field.getAnnotation(MappingRelation.class);
+				final DatabaseEntity childEntity;
+				
+				if (List.class.isAssignableFrom(field.getType())) {
+					final Type genericType = ((ParameterizedType) field.getGenericType()).getActualTypeArguments()[0];
+	    			final Class<?> genericClass = Class.forName(genericType.getTypeName());
+	    			childEntity = (DatabaseEntity)genericClass.getConstructor().newInstance();
+				}
+				else if (DatabaseEntity.class.isAssignableFrom(field.getType())) {
+					childEntity = (DatabaseEntity)field.getType().getConstructor().newInstance();
+				}
+				else {
+					return;
+				}
+    			String childAlias = entity.getTableName() + "_" + field.getName();
+    			aliasField.set(childEntity, childAlias);
+    			select.append(", ").append(getColumnsCsvWithAlias(childAlias, childEntity.getColumnNames(true)));
+    			
+    			// this is an m:n mapping
+    			if (!relation.mappingTableName().isEmpty()) {
+    				join.append(" LEFT JOIN " + relation.mappingTableName() + " ON " + relation.mappingTableName() + "." + relation.masterColumnName() + " = " + entity.getTableName() + "." + entity.getPrimaryKeyColumn());
+    				join.append(" LEFT JOIN " + childEntity.getTableName() + " " + childAlias + " ON " + relation.mappingTableName() + "." + relation.joinedColumnName() + " = " + childAlias + "." + childEntity.getPrimaryKeyColumn());
+    			}
+    			else {
+    				join.append(" LEFT JOIN " + childEntity.getTableName() + " " + childAlias + " ON " + childAlias + "." + relation.joinedColumnName() + " = " + entityTableAlias + "." + relation.masterColumnName());
+    			}
+    			
+    			buildQueryRecursively(childEntity, filter, select, from, join, where, params, currentDepth);
+			}
+			// this is a misconfiguration
+			else if (DatabaseEntity.class.isAssignableFrom(field.getType())) {
+				throw new Exception("DatabaseEntity " + field.getType().getName() + " in " + entity.getClass().getName() + " found, but the MappingRelation annotation is missing");
+			}
+		}
+	}
+    
+    private Field findField(Class<?> clazz, String fieldName) {
+    	for (Field f : clazz.getDeclaredFields()) {
+    		f.setAccessible(true);
+    		if (f.getName().equals(fieldName)) {
+    			return f;
+    		}
+    	}
+    	if (clazz.getSuperclass() != null) {
+    		return findField(clazz.getSuperclass(), fieldName);
+    	}
+		return null;
+	}
+
+	public static String sqlPrettyPrint(String sql) {
+		if (sql == null) {
+			return null;
+		}
+		return sql.replaceAll("SELECT", "\n\tSELECT").replaceAll("FROM", "\n\tFROM").replaceAll("LEFT JOIN", "\n\tLEFT JOIN").replaceAll("WHERE", "\n\tWHERE");
+	}
+	
+	/**
+	 * sets the maximum level in the hierarchy tree. A flat list for e.g. users can be fetched by setting the depth to 0.
+	 * If the user object has roles which should also be fetched, the depth must be set to 1. 
+	 * If the roles have relations to other tables which should also be considered, the depth must be 2. To ignore depth and fetch all entities, pass in -1
+	 * 
+	 * default is -1 (fetches everything)
+	 * @param fetchDepth
+	 */
+	public void setFetchDepth(Integer fetchDepth) {
+		if (fetchDepth == null) {
+			this.fetchDepth = -1;
+		}
+		else {
+			this.fetchDepth = fetchDepth;
+		}
+	}
     
 }
