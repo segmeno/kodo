@@ -9,7 +9,7 @@ import com.segmeno.kodo.annotation.MappingRelation;
 import com.segmeno.kodo.annotation.PrimaryKey;
 import com.segmeno.kodo.database.DatabaseEntity;
 
-public class User extends DatabaseEntity {
+public class TestUser extends DatabaseEntity {
 
 	@PrimaryKey
 	public Integer id;
@@ -21,13 +21,13 @@ public class User extends DatabaseEntity {
 	public Date createdAt;
 	
 	@MappingRelation(masterColumnName="ID", joinedColumnName="UserID")
-	public List<Address> addresses = new ArrayList<Address>();
+	public List<TestAddress> addresses = new ArrayList<TestAddress>();
 
 	@MappingRelation(mappingTableName="tbUserRole", masterColumnName="UserID", joinedColumnName="RoleID")
-	public List<Role> roles = new ArrayList<Role>();
+	public List<TestRole> roles = new ArrayList<TestRole>();
 	
 	@MappingRelation(masterColumnName="ClearanceLevelID", joinedColumnName="ID")
-	public Type clearanceLevel;
+	public TestType clearanceLevel;
 	
 	@DbIgnore
 	public String notExistingInDb;

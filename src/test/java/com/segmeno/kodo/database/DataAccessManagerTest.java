@@ -19,11 +19,13 @@ import org.junit.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowCallbackHandler;
 
-import com.segmeno.kodo.entity.Role;
-import com.segmeno.kodo.entity.User;
-import com.segmeno.kodo.transport.AdvancedCriteria;
+import com.segmeno.kodo.entity.TestAddress;
+import com.segmeno.kodo.entity.TestRole;
+import com.segmeno.kodo.entity.TestType;
+import com.segmeno.kodo.entity.TestUser;
+import com.segmeno.kodo.transport.CriteriaGroup;
 import com.segmeno.kodo.transport.Criteria;
-import com.segmeno.kodo.transport.OperatorId;
+import com.segmeno.kodo.transport.Operator;
 
 public class DataAccessManagerTest {
 
@@ -105,29 +107,58 @@ public class DataAccessManagerTest {
 
 	@Test
 	public void countElemTest() throws Exception {
-		long count = manager.getElemCount(User.class);
-		assertTrue(count == 2);
+		long count = manager.getElemCount(TestUser.class);
+		assertTrue(count == 3);
 	}
 
 	@Test
 	public void getElemsTest() throws Exception {
 
-		final List<User> users = manager.getElems(User.class);
-		assertTrue(users.size() == 2);
+		final List<TestUser> users = manager.getElems(TestUser.class);
+		assertTrue(users.size() == 3);
 
-		final User tom = users.stream().filter(user -> user.name.equals("Tom")).findFirst().orElse(null);
+		final TestUser tom = users.stream().filter(user -> user.name.equals("Tom")).findFirst().orElse(null);
 		assertNotNull(tom);
 		assertTrue(tom.addresses.size() == 2);
 		assertTrue(tom.roles.size() == 2);
 
-		final User tim = users.stream().filter(user -> user.name.equals("Tim")).findFirst().orElse(null);
+		final TestUser tim = users.stream().filter(user -> user.name.equals("Tim")).findFirst().orElse(null);
 		assertNotNull(tim);
 		assertTrue(tim.addresses.size() == 1);
 		assertTrue(tim.roles.size() == 1);
 		
-		final Role timsRole = tim.roles.get(0);
+		final TestRole timsRole = tim.roles.get(0);
 		assertTrue(timsRole.primaryColor.name.equals("green"));
 		assertTrue(timsRole.secondaryColor.name.equals("green"));
+	}
+	
+	@Test
+	public void deleteElemsTest() throws Exception {
+		manager.deleteElems(new CriteriaGroup(Operator.AND, new Criteria("Name", Operator.EQUALS, "Tom")), TestUser.class);
+		assertTrue(manager.getElemCount(TestUser.class) == 2);
+		assertTrue(manager.getElemCount(TestRole.class) == 2);
+		assertTrue(manager.getElemCount(TestAddress.class) == 2);
+	}
+	
+	@Test
+	public void addElemTest() throws Exception {
+		
+		final TestAddress addr = new TestAddress();
+		addr.postalCode = "666666";
+		addr.street = "junit street";
+		
+		final TestType clearance = new TestType();
+		clearance.name = "SPECIAL OPERATIONS";
+		
+		final TestUser user = new TestUser();
+		user.name = "Ted";
+		user.addresses.add(addr);
+		user.clearanceLevel = clearance;
+		
+		manager.addElem(user);
+		assertTrue(manager.getElemCount(TestUser.class) == 3);
+		assertTrue(manager.getElemCount(TestAddress.class) == 4);
+		assertTrue(manager.getElemCount(TestType.class) == 6);
 	}
 
 	@Test
@@ -135,10 +166,10 @@ public class DataAccessManagerTest {
 
 			final List<Object> params = new ArrayList<Object>();
 			
-			final AdvancedCriteria filter = new AdvancedCriteria(OperatorId.AND)
-					.add(new Criteria("Name", OperatorId.ENDS_WITH, "m"));
+			final CriteriaGroup filter = new CriteriaGroup(Operator.AND)
+					.add(new Criteria("Name", Operator.ENDS_WITH, "m"));
 					
-			final String query = manager.buildQuery(new User(), filter, params);
+			final String query = manager.buildQuery(new TestUser(), filter, params);
 
 			System.out.println(DataAccessManager.sqlPrettyPrint(query.toString()) + "\t" + params + "\n");
 			executeAndPrintResults(query.toString(), params.toArray());

@@ -1,9 +1,21 @@
 package com.segmeno.kodo.transport;
 
-public enum OperatorId {
+public enum Operator {
+	/**
+	 * expression must match perfectly
+	 */
     EQUALS("equals"),
+    /**
+	 * expression must differ
+	 */
     NOT_EQUAL("notEqual"),
+    /**
+	 * expression must match perfectly, but case is insensitive
+	 */
     IEQUALS("iEquals"),
+    /**
+	 * expression must differ. Ignores case
+	 */
     INOT_EQUAL("iNotEqual"),
     GREATER_THAN("greaterThan"),
     LESS_THAN("lessThan"),
@@ -66,7 +78,7 @@ public enum OperatorId {
     BETWEEN_INCLUSIVE("betweenInclusive");
     private String value;
 
-    OperatorId(String value) {
+    Operator(String value) {
         this.value = value;
     }
 

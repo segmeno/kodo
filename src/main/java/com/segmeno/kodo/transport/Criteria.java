@@ -3,25 +3,25 @@ package com.segmeno.kodo.transport;
 public class Criteria {
 	
 	private String fieldName;
-	private OperatorId operator;
+	private Operator operator;
 	private String stringValue; 
 	private Number numberValue;
 	
 	public Criteria() {}
 	
-	public Criteria(String fieldName, OperatorId operator) {
+	public Criteria(String fieldName, Operator operator) {
 		this(fieldName, operator, null, null);
 	}
 	
-	public Criteria(String fieldName, OperatorId operator, String stringValue) {
+	public Criteria(String fieldName, Operator operator, String stringValue) {
 		this(fieldName, operator, stringValue, null);
 	}
 	
-	public Criteria(String fieldName, OperatorId operator, Number numberValue) {
+	public Criteria(String fieldName, Operator operator, Number numberValue) {
 		this(fieldName, operator, null, numberValue);
 	}
 	
-	public Criteria(String fieldName, OperatorId operator, String stringValue, Number numberValue) {
+	public Criteria(String fieldName, Operator operator, String stringValue, Number numberValue) {
 		this.fieldName = fieldName;
 		this.operator = operator;
 		this.stringValue = stringValue;
@@ -32,7 +32,7 @@ public class Criteria {
 		return fieldName;
 	}
 
-	public OperatorId getOperator() {
+	public Operator getOperator() {
 		return operator;
 	}
 

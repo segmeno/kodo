@@ -20,9 +20,9 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.segmeno.kodo.annotation.MappingRelation;
-import com.segmeno.kodo.transport.AdvancedCriteria;
+import com.segmeno.kodo.transport.CriteriaGroup;
 import com.segmeno.kodo.transport.Criteria;
-import com.segmeno.kodo.transport.OperatorId;
+import com.segmeno.kodo.transport.Operator;
 
 public class DataAccessManager {
 
@@ -32,7 +32,6 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
 	protected DataSource dataSource;
 	protected JdbcTemplate jdbcTemplate;
 	protected NamedParameterJdbcTemplate namedParameterJdbcTemplate;
-	protected int fetchDepth = -1;
 	
 	private enum MappingTableBehaviour {
 		IGNORE,
@@ -62,7 +61,7 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
 	 * @throws Exception
 	 */
 	public <T> List<T> getElems(Class<? extends DatabaseEntity> entityType) throws Exception {
-		return getElems((AdvancedCriteria)null, entityType);
+		return getElems((CriteriaGroup)null, entityType);
 	}
 	
 	/**
@@ -73,17 +72,29 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
 	 * @throws Exception
 	 */
 	public <T> List<T> getElems(Criteria criteria, Class<? extends DatabaseEntity> entityType) throws Exception {
-    	return getElems(new AdvancedCriteria(OperatorId.AND, criteria), entityType);
+    	return getElems(new CriteriaGroup(Operator.AND, criteria), entityType);
     }
 	
 	/**
-	 * returns a list of the queried entity type, considering a criteria for filtering
+	 * returns a list of the queried entity type, considering a criteria for filtering. Fills all sub elements and their children
 	 * @param advancedCriteria the advancedCriteria for filtering the main entity
 	 * @param entityType the main entity type to query
 	 * @return
 	 * @throws Exception
 	 */
-	public <T> List<T> getElems(AdvancedCriteria advancedCriteria, Class<? extends DatabaseEntity> entityType) throws Exception {
+	public <T> List<T> getElems(CriteriaGroup advancedCriteria, Class<? extends DatabaseEntity> entityType) throws Exception {
+		return getElems(advancedCriteria, entityType, -1);
+	}
+	
+	/**
+	 * returns a list of the queried entity type, considering a criteria for filtering
+	 * @param advancedCriteria the advancedCriteria for filtering the main entity
+	 * @param entityType the main entity type to query
+	 * @param fetchDepth - how deep to dig down in the hierarchy level. Pass in -1 to fetch all (sub)elements
+	 * @return
+	 * @throws Exception
+	 */
+	public <T> List<T> getElems(CriteriaGroup advancedCriteria, Class<? extends DatabaseEntity> entityType, int fethDepth) throws Exception {
 
 		final List<Object> params = new ArrayList<Object>();
 		final DatabaseEntity mainEntity = entityType.getConstructor().newInstance();
@@ -175,14 +186,14 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
 	}
 
     public Long getElemCount(Class<? extends DatabaseEntity> entityType) throws Exception {
-    	return getElemCount((AdvancedCriteria)null, entityType);
+    	return getElemCount((CriteriaGroup)null, entityType);
     }
     
     public Long getElemCount(Criteria criteria, Class<? extends DatabaseEntity> entityType) throws Exception {
-    	return getElemCount(new AdvancedCriteria(OperatorId.AND, criteria), entityType);
+    	return getElemCount(new CriteriaGroup(Operator.AND, criteria), entityType);
     }
     
-    public Long getElemCount(AdvancedCriteria criteria, Class<? extends DatabaseEntity> entityType) throws Exception {
+    public Long getElemCount(CriteriaGroup criteria, Class<? extends DatabaseEntity> entityType) throws Exception {
     	final DatabaseEntity mainEntity = entityType.getConstructor().newInstance();
 
 		final List<Object> params = new ArrayList<Object>();
@@ -198,23 +209,59 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
 		return jdbcTemplate.queryForObject(sql, params.toArray(), Long.class);
     }
 	
+    /**
+     * adds the given element to the DB. If there are sub elements set without an ID, these will be inserted too. Many-To-Many mappings will be ignored
+     * @param obj
+     * @return
+     * @throws Exception
+     */
     @SuppressWarnings("unchecked")
 	@Transactional(propagation = Propagation.REQUIRED)
     public <T> T addElem(DatabaseEntity obj) throws Exception {
-    	final SimpleJdbcInsert insert = new SimpleJdbcInsert(dataSource)
-	            .withTableName(obj.getTableName())
-	            .usingGeneratedKeyColumns(obj.getPrimaryKeyColumn())
-	            .usingColumns(obj.getColumnNames(false).toArray(new String[0]));
-    	
-    	try {
-			final Number key = insert.executeAndReturnKey(obj.toMap());
-			obj.setPrimaryKeyValue(key.intValue());
-		} catch (Exception e) {
-			log.warn("could not insert " + obj.getClass().getSimpleName()+ ": " + e.getMessage());
-			log.warn("trying alternative method");
-			obj.setPrimaryKeyValue(jdbcTemplate.queryForObject("SELECT MAX( " + obj.getPrimaryKeyColumn() + ") FROM " + obj.getTableName(), Long.class));
-		}
+    	addElemRecursively(obj);
     	return (T)obj;
+    }
+    
+    private void addElemRecursively(DatabaseEntity baseEntity) throws Exception {
+    	
+    	for (Field field : baseEntity.fields) {
+			if (field.getAnnotation(MappingRelation.class) != null && field.getAnnotation(MappingRelation.class).mappingTableName().isEmpty()) {
+				// these are required parent elements which will first be created
+				if (DatabaseEntity.class.isAssignableFrom(field.getType())) {
+					final DatabaseEntity parent = (DatabaseEntity)field.get(baseEntity);
+					if (parent != null && parent.getPrimaryKeyValue() == null) {
+						addElemRecursively(parent);
+					}
+				}
+			}
+    	}
+    	final SimpleJdbcInsert insert = new SimpleJdbcInsert(dataSource)
+	            .withTableName(baseEntity.getTableName())
+	            .usingGeneratedKeyColumns(baseEntity.getPrimaryKeyColumn())
+	            .usingColumns(baseEntity.getColumnNames(false).toArray(new String[0]));
+    	try {
+			final Number key = insert.executeAndReturnKey(baseEntity.toMap());
+			baseEntity.setPrimaryKeyValue(key.intValue());
+    	} catch (Exception e) {
+			log.warn("could not insert " + baseEntity.getClass().getSimpleName()+ ": " + e.getMessage());
+			log.warn("trying alternative method");
+			baseEntity.setPrimaryKeyValue(jdbcTemplate.queryForObject("SELECT MAX( " + baseEntity.getPrimaryKeyColumn() + ") FROM " + baseEntity.getTableName(), Long.class));
+		}
+		for (Field field : baseEntity.fields) {
+			if (field.getAnnotation(MappingRelation.class) != null && field.getAnnotation(MappingRelation.class).mappingTableName().isEmpty()) {
+				// these are dependant child elements which will be created after creating the parent element
+				if (List.class.isAssignableFrom(field.getType())) {
+	    			final List<DatabaseEntity> list = (List)field.get(baseEntity);
+	    			for (DatabaseEntity child : list) {
+	    				final Field fkField = child.fields.stream().filter(f -> f.getName().equalsIgnoreCase(field.getAnnotation(MappingRelation.class).joinedColumnName())).findFirst().orElse(null);
+	    				fkField.set(child, baseEntity.getPrimaryKeyValue());
+	    				if (child.getPrimaryKeyValue() == null) {
+	    					addElemRecursively(child);
+	    				}
+	    			}
+				}
+			}
+		}
     }
     
     @Transactional(propagation = Propagation.REQUIRED)
@@ -239,7 +286,7 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
         		sb.setLength(sb.length()-2);	// crop last comma
         	}
         	final String stmt = "UPDATE " + obj.getTableName() + " SET " + sb.toString() + " WHERE " + obj.getPrimaryKeyColumn() + " = :" + obj.getPrimaryKeyColumn();
-        	log.debug("Query: " + sqlPrettyPrint(stmt) + "\t\t[" + toCsv(obj.toMap().values()) + "]");
+        	log.debug("Query: " + sqlPrettyPrint(stmt) + "\t[" + toCsv(obj.toMap().values()) + "]");
         	namedParameterJdbcTemplate.update(stmt, obj.toMap());
         	
         	// check if there is a list of sub entities which also need to be added or updated
@@ -259,11 +306,8 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
      * @throws Exception
      */
     @Transactional(propagation = Propagation.REQUIRED)
-	public void deleteElems(AdvancedCriteria advancedCriteria, Class<? extends DatabaseEntity> entityType) throws Exception {
-    	List<DatabaseEntity> elemsToDelete = getElems(advancedCriteria, entityType);
-    	for (DatabaseEntity entity : elemsToDelete) {
-    		deleteElem(entity);
-    	}
+	public void deleteElems(Criteria criteria, Class<? extends DatabaseEntity> entityType) throws Exception {
+    	deleteElems(new CriteriaGroup(Operator.AND, criteria), entityType);
     }
 	
     /**
@@ -272,31 +316,36 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
      * @throws Exception
      */
 	@Transactional(propagation = Propagation.REQUIRED)
-	public void deleteElem(DatabaseEntity obj) throws Exception {
-		if (obj.getPrimaryKeyValue()== null || Integer.valueOf(String.valueOf(obj.getPrimaryKeyValue())) == -1) {
-			log.warn("could not delete " + obj.getClass().getSimpleName() + ": no primary key set");
-		}
-		else {
-			// check if there is a list of sub entities which need to be deleted first
-			for (Map.Entry<Class<? extends DatabaseEntity>,List<DatabaseEntity>> entry : getAllChildEntities(obj, MappingTableBehaviour.IGNORE).entrySet()) {
-				final List<DatabaseEntity> elements = entry.getValue();
-				for (DatabaseEntity element : elements) {
-					deleteElem(element);
+	public void deleteElems(CriteriaGroup advancedCriteria, Class<? extends DatabaseEntity> entityType) throws Exception {
+		final DatabaseEntity obj = entityType.getConstructor().newInstance();
+		final WherePart whereClause = new WherePart(obj.getTableName(), advancedCriteria);
+		final String stmt = "SELECT " + obj.getPrimaryKeyColumn() + " FROM " + obj.getTableName() + " WHERE " + whereClause.toString();
+		
+		deleteElemsRecursively(obj, stmt, whereClause.getValues());
+	}
+	
+	private void deleteElemsRecursively(DatabaseEntity entity, String stmt, List<Object> params) throws Exception {
+		
+		for (Field field : entity.fields) {
+			// discover all sub elements which are coming from sub tables, but ignore n:m mappings
+			if (field.getAnnotation(MappingRelation.class) != null && field.getAnnotation(MappingRelation.class).mappingTableName().isEmpty()) {
+				if (List.class.isAssignableFrom(field.getType())) {
+					final Type genericType = ((ParameterizedType) field.getGenericType()).getActualTypeArguments()[0];
+	    			final Class<?> genericClass = Class.forName(genericType.getTypeName());
+	    			final DatabaseEntity childEntity = (DatabaseEntity)genericClass.getConstructor().newInstance();
+	    			
+	    			final String s = "SELECT " + childEntity.getPrimaryKeyColumn() + " FROM " + childEntity.getTableName() + " WHERE " + 
+							field.getAnnotation(MappingRelation.class).joinedColumnName() + " IN (" + stmt + ")";
+			
+	    			deleteElemsRecursively(childEntity, s, params);
 				}
 			}
-			final String stmt = "DELETE FROM " + obj.getTableName() + " WHERE " + obj.getPrimaryKeyColumn() + " = ?";
-			log.debug("Query: " + sqlPrettyPrint(stmt) + "\t\t[" + obj.getPrimaryKeyValue() + "]");
-			jdbcTemplate.update(stmt, obj.getPrimaryKeyValue());
 		}
+		
+		final String query = "DELETE FROM " + entity.getTableName() + " WHERE " + entity.getPrimaryKeyColumn() + " IN (" + stmt + ")";
+		log.debug("Query: " + sqlPrettyPrint(query) + "\t[" + toCsv(params.toArray()) + "]");
+		jdbcTemplate.update(query, params.toArray());
 	}
-    
-//    /**
-//     * this method can be used to retrieve data for grids, supports paging and filtering
-//     */
-//    public List<Object[]> getRows(Class<? extends DatabaseEntity> model) {
-//    	final String tableName = model.getConstructor().newInstance().getTableName();
-//    	jdbcTemplate.query("SELECT * FROM " + tableName)
-//    }
     
     protected <T> String toCsv(final T[] list) {
 		final StringBuilder sb = new StringBuilder();
@@ -352,7 +401,7 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
     			// check if the list generic is of type DatabaseEntity
     			if (DatabaseEntity.class.isAssignableFrom(genericClass)) {
     				// if the child element is related via a many-to-many table, we need to check if it should be part of the result
-    				if (f.getAnnotation(MappingRelation.class) != null && mappingTableBehaviour == MappingTableBehaviour.IGNORE) {
+    				if (f.getAnnotation(MappingRelation.class) != null && !f.getAnnotation(MappingRelation.class).mappingTableName().isEmpty() && mappingTableBehaviour == MappingTableBehaviour.IGNORE) {
     					continue;
     				}
     				final List<DatabaseEntity> list = (List<DatabaseEntity>)f.get(mainEntity);
@@ -362,8 +411,8 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
     	}
     	return typeToEntries;
     }
-
-	/**
+    
+    /**
 	 * builds a query from the entity and given filters
 	 * @param entity - the main entity
 	 * @param filter - criteria(s) to filter on the main entity
@@ -371,7 +420,20 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
 	 * @return
 	 * @throws Exception
 	 */
-	protected String buildQuery(DatabaseEntity entity, AdvancedCriteria filter, List<Object> params) throws Exception {
+    protected String buildQuery(DatabaseEntity entity, CriteriaGroup filter, List<Object> params) throws Exception {
+    	return buildQuery(entity, filter, params, -1);
+    }
+
+	/**
+	 * builds a query from the entity and given filters
+	 * @param entity - the main entity
+	 * @param filter - criteria(s) to filter on the main entity
+	 * @param params - this list will be filled by the algorithm
+	 * @param fetchDepth - how deep to dig down in the hierarchy level. Pass in -1 to fetch all (sub)elements 
+	 * @return
+	 * @throws Exception
+	 */
+	protected String buildQuery(DatabaseEntity entity, CriteriaGroup filter, List<Object> params, int fetchDepth) throws Exception {
 		final StringBuilder select = new StringBuilder();
 		final StringBuilder from = new StringBuilder();
 		final StringBuilder join = new StringBuilder();
@@ -380,7 +442,11 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
 		return select.toString() + from.toString() + join.toString() + where.toString();
 	}
 	
-	private void buildQueryRecursively(DatabaseEntity entity, AdvancedCriteria filter, StringBuilder select, StringBuilder from, StringBuilder join, StringBuilder where, List<Object> params, int currentDepth) throws Exception {
+	private void buildQueryRecursively(DatabaseEntity entity, CriteriaGroup filter, StringBuilder select, StringBuilder from, StringBuilder join, StringBuilder where, List<Object> params, int currentDepth) throws Exception {
+		buildQueryRecursively(entity, filter, select, from, join, where, params, 0, -1);
+	}
+	
+	private void buildQueryRecursively(DatabaseEntity entity, CriteriaGroup filter, StringBuilder select, StringBuilder from, StringBuilder join, StringBuilder where, List<Object> params, int currentDepth, int fetchDepth) throws Exception {
 		if (select.length() == 0) {
 			select.append("SELECT " + getColumnsCsvWithAlias(entity.getTableName(), entity.getColumnNames(true)));
 			from.append(" FROM " + entity.getTableName());
@@ -463,23 +529,6 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
 			return null;
 		}
 		return sql.replaceAll("SELECT", "\n\tSELECT").replaceAll("FROM", "\n\tFROM").replaceAll("LEFT JOIN", "\n\tLEFT JOIN").replaceAll("WHERE", "\n\tWHERE");
-	}
-	
-	/**
-	 * sets the maximum level in the hierarchy tree. A flat list for e.g. users can be fetched by setting the depth to 0.
-	 * If the user object has roles which should also be fetched, the depth must be set to 1. 
-	 * If the roles have relations to other tables which should also be considered, the depth must be 2. To ignore depth and fetch all entities, pass in -1
-	 * 
-	 * default is -1 (fetches everything)
-	 * @param fetchDepth
-	 */
-	public void setFetchDepth(Integer fetchDepth) {
-		if (fetchDepth == null) {
-			this.fetchDepth = -1;
-		}
-		else {
-			this.fetchDepth = fetchDepth;
-		}
 	}
     
 }

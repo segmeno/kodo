@@ -6,7 +6,7 @@ import java.util.stream.Collectors;
 
 import org.apache.log4j.Logger;
 
-import com.segmeno.kodo.transport.AdvancedCriteria;
+import com.segmeno.kodo.transport.CriteriaGroup;
 import com.segmeno.kodo.transport.Criteria;
 
 public class WherePart {
@@ -23,7 +23,7 @@ public class WherePart {
 	 * @param adCrit - the filter settings to be used
 	 * @throws Exception
 	 */
-	public WherePart(String tableAlias, AdvancedCriteria adCrit) throws Exception {
+	public WherePart(String tableAlias, CriteriaGroup adCrit) throws Exception {
 		this(tableAlias, null, adCrit);
 	}
 	
@@ -34,7 +34,7 @@ public class WherePart {
 	 * @param adCrit - the filter settings to be used
 	 * @throws Exception
 	 */
-	public WherePart(String tableAlias, List<String> columnNames, AdvancedCriteria adCrit) throws Exception {
+	public WherePart(String tableAlias, List<String> columnNames, CriteriaGroup adCrit) throws Exception {
 		if (columnNames != null) {
 			this.columnNames = columnNames.stream().map(col -> col.toUpperCase()).collect(Collectors.toList());
 		}

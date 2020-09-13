@@ -5,7 +5,7 @@ import java.util.Date;
 import com.segmeno.kodo.annotation.PrimaryKey;
 import com.segmeno.kodo.database.DatabaseEntity;
 
-public class Address extends DatabaseEntity {
+public class TestAddress extends DatabaseEntity {
 
 	@PrimaryKey
 	public Integer id;

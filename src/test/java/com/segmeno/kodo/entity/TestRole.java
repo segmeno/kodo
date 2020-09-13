@@ -6,7 +6,7 @@ import com.segmeno.kodo.annotation.MappingRelation;
 import com.segmeno.kodo.annotation.PrimaryKey;
 import com.segmeno.kodo.database.DatabaseEntity;
 
-public class Role extends DatabaseEntity {
+public class TestRole extends DatabaseEntity {
 
 	@PrimaryKey
 	public Integer id;
@@ -18,10 +18,10 @@ public class Role extends DatabaseEntity {
 	public Date createdAt;
 	
 	@MappingRelation(masterColumnName="primaryColorId", joinedColumnName="id")
-	public Type primaryColor;
+	public TestType primaryColor;
 	
 	@MappingRelation(masterColumnName="secondaryColorId", joinedColumnName="id")
-	public Type secondaryColor;
+	public TestType secondaryColor;
 	
 	@Override
 	public String getTableName() {

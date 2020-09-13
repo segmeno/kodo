@@ -4,25 +4,25 @@ import java.util.ArrayList;
 import java.util.List;
 
 
-public class AdvancedCriteria {
-	private final  OperatorId operator;
+public class CriteriaGroup {
+	private final  Operator operator;
 	private final List<Criteria> criterias = new ArrayList<Criteria>();
 	
-	public AdvancedCriteria(OperatorId operator, List<Criteria> criterias) {
+	public CriteriaGroup(Operator operator, List<Criteria> criterias) {
 		this.operator = operator;
 		this.criterias.addAll(criterias);
 	}
 	
-	public AdvancedCriteria(OperatorId operator, Criteria criteria) {
+	public CriteriaGroup(Operator operator, Criteria criteria) {
 		this.operator = operator;
 		this.criterias.add(criteria);
 	}
 	
-	public AdvancedCriteria(OperatorId operator) {
+	public CriteriaGroup(Operator operator) {
 		this.operator = operator;
 	}
 
-	public OperatorId getOperator() {
+	public Operator getOperator() {
 		return operator;
 	}
 	
@@ -30,7 +30,7 @@ public class AdvancedCriteria {
 		return criterias;
 	}
 	
-	public AdvancedCriteria add(Criteria c) {
+	public CriteriaGroup add(Criteria c) {
 		criterias.add(c);
 		return this;
 	}
