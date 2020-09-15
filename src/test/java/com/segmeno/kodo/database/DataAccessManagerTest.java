@@ -80,31 +80,6 @@ public class DataAccessManagerTest {
 		con.commit();
 	}
 
-//	@Test
-//	@Transactional(propagation = Propagation.REQUIRED)
-//	public void crudTest() throws Exception {
-//		User user = new User();
-//		user.name = "junit";
-//		user.passwordHash = "123";
-//		user.createdAt = new Date();
-//
-//		manager.addElem(user);
-//		List<User> users = manager.getElems(new Criteria("name", OperatorId.EQUALS, "junit"), User.class);
-//		assertTrue(users.size() == 1);
-//		final User insertedUser = users.get(0);
-//		assertTrue(insertedUser.addresses.isEmpty());
-//		assertTrue(insertedUser.roles.isEmpty());
-//
-//		insertedUser.name = "junitTest";
-//		manager.updateElem(insertedUser);
-//		users = manager.getElems(new Criteria("name", OperatorId.EQUALS, "junitTest"), User.class);
-//		assertTrue(users.size() == 1);
-//
-//		manager.deleteElem(insertedUser);
-//		users = manager.getElems(new Criteria("name", OperatorId.EQUALS, "junitTest"), User.class);
-//		assertTrue(users.size() == 0);
-//	}
-
 	@Test
 	public void countElemTest() throws Exception {
 		long count = manager.getElemCount(TestUser.class);
@@ -135,9 +110,16 @@ public class DataAccessManagerTest {
 	@Test
 	public void deleteElemsTest() throws Exception {
 		manager.deleteElems(new CriteriaGroup(Operator.AND, new Criteria("Name", Operator.EQUALS, "Tom")), TestUser.class);
-		assertTrue(manager.getElemCount(TestUser.class) == 2);
+		
+		assertTrue(manager.getElemCount(new Criteria("Name", Operator.EQUALS, "Tom"), TestUser.class) == 0);
+		
 		assertTrue(manager.getElemCount(TestRole.class) == 2);
-		assertTrue(manager.getElemCount(TestAddress.class) == 2);
+		
+		CriteriaGroup cg = new CriteriaGroup(Operator.OR)
+							.add(new Criteria("Street", Operator.EQUALS, "Elmstreet"))
+							.add(new Criteria("Street", Operator.EQUALS, "Testplace"));
+		
+		assertTrue(manager.getElemCount(cg, TestAddress.class) == 0);
 	}
 	
 	@Test

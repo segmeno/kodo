@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
+import com.segmeno.kodo.annotation.Column;
 import com.segmeno.kodo.annotation.DbIgnore;
 import com.segmeno.kodo.annotation.MappingRelation;
 import com.segmeno.kodo.annotation.PrimaryKey;
@@ -16,7 +17,8 @@ public class TestUser extends DatabaseEntity {
 	
 	public String name;
 	
-	public String passwordHash;
+	@Column(columnName="passwordHash")
+	public String pwHash;
 	
 	public Date createdAt;
 	

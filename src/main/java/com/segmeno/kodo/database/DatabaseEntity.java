@@ -11,6 +11,7 @@ import java.util.Map;
 import org.apache.log4j.Logger;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.segmeno.kodo.annotation.Column;
 import com.segmeno.kodo.annotation.DbIgnore;
 import com.segmeno.kodo.annotation.MappingRelation;
 import com.segmeno.kodo.annotation.PrimaryKey;
@@ -56,7 +57,12 @@ public abstract class DatabaseEntity {
 					Collection.class.isAssignableFrom(f.getType()) || f.getAnnotation(MappingRelation.class) != null) {
 				continue;
 			}
-			cols.add(f.getName());
+			if (f.getAnnotation(Column.class) != null && !f.getAnnotation(Column.class).columnName().isEmpty()) {
+				cols.add(f.getAnnotation(Column.class).columnName());
+			}
+			else {
+				cols.add(f.getName());
+			}
 		}
 		return cols;
 	};

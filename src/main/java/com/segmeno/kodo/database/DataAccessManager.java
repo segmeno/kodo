@@ -94,11 +94,11 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
 	 * @return
 	 * @throws Exception
 	 */
-	public <T> List<T> getElems(CriteriaGroup advancedCriteria, Class<? extends DatabaseEntity> entityType, int fethDepth) throws Exception {
+	public <T> List<T> getElems(CriteriaGroup advancedCriteria, Class<? extends DatabaseEntity> entityType, int fetchDepth) throws Exception {
 
 		final List<Object> params = new ArrayList<Object>();
 		final DatabaseEntity mainEntity = entityType.getConstructor().newInstance();
-    	final String query = buildQuery(mainEntity, advancedCriteria, params);
+    	final String query = buildQuery(mainEntity, advancedCriteria, params, fetchDepth);
     	
     	log.debug("Query: " + sqlPrettyPrint(query) + "\t\t" + params);
 		final List<Map<String,Object>> rows = jdbcTemplate.queryForList(query, params.toArray());
@@ -327,9 +327,16 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
 	private void deleteElemsRecursively(DatabaseEntity entity, String stmt, List<Object> params) throws Exception {
 		
 		for (Field field : entity.fields) {
-			// discover all sub elements which are coming from sub tables, but ignore n:m mappings
-			if (field.getAnnotation(MappingRelation.class) != null && field.getAnnotation(MappingRelation.class).mappingTableName().isEmpty()) {
-				if (List.class.isAssignableFrom(field.getType())) {
+			// discover all sub elements which are coming from sub tables
+			if (field.getAnnotation(MappingRelation.class) != null) {
+				final MappingRelation mapping = field.getAnnotation(MappingRelation.class);
+				// if there is an m:n mapping table, remove the entry first
+				if (!mapping.mappingTableName().isEmpty()) {
+					final String nmDel = "DELETE FROM " + mapping.mappingTableName() + " WHERE " + mapping.masterColumnName() + " = (" + stmt + ")";
+					log.debug("Query: " + sqlPrettyPrint(nmDel) + "\t[" + toCsv(params.toArray()) + "]");
+					jdbcTemplate.update(nmDel, params.toArray());
+				}
+				else if (List.class.isAssignableFrom(field.getType())) {
 					final Type genericType = ((ParameterizedType) field.getGenericType()).getActualTypeArguments()[0];
 	    			final Class<?> genericClass = Class.forName(genericType.getTypeName());
 	    			final DatabaseEntity childEntity = (DatabaseEntity)genericClass.getConstructor().newInstance();
