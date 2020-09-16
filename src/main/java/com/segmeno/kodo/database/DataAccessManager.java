@@ -20,8 +20,8 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.segmeno.kodo.annotation.MappingRelation;
-import com.segmeno.kodo.transport.CriteriaGroup;
 import com.segmeno.kodo.transport.Criteria;
+import com.segmeno.kodo.transport.CriteriaGroup;
 import com.segmeno.kodo.transport.Operator;
 
 public class DataAccessManager {
@@ -145,9 +145,12 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
 	    			
 					if (!alreadyFilledObjects.containsKey(childUniqueKey)) {
 						final List<DatabaseEntity> list = (List)field.get(entity);
-						list.add(childEntity);
-						field.set(entity, list);
-						rowToEntity(childEntity, childAlias, row, alreadyFilledObjects);
+						// list can be null if the fetch depth prevented the list element to be filled
+						if (list != null) {
+							list.add(childEntity);
+							field.set(entity, list);
+							rowToEntity(childEntity, childAlias, row, alreadyFilledObjects);
+						}
 					}
 				}
 				else if (DatabaseEntity.class.isAssignableFrom(field.getType())) {
@@ -446,15 +449,18 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
 		final StringBuilder from = new StringBuilder();
 		final StringBuilder join = new StringBuilder();
 		final StringBuilder where = new StringBuilder();
-		buildQueryRecursively(entity, filter, select, from, join, where, params, 0);
+		buildQueryRecursively(entity, "/", filter, select, from, join, where, params, 0, fetchDepth);
 		return select.toString() + from.toString() + join.toString() + where.toString();
 	}
 	
-	private void buildQueryRecursively(DatabaseEntity entity, CriteriaGroup filter, StringBuilder select, StringBuilder from, StringBuilder join, StringBuilder where, List<Object> params, int currentDepth) throws Exception {
-		buildQueryRecursively(entity, filter, select, from, join, where, params, 0, -1);
+	private void buildQueryRecursively(DatabaseEntity entity, CriteriaGroup filter, StringBuilder select, StringBuilder from, StringBuilder join, StringBuilder where, List<Object> params, int fetchDepth) throws Exception {
+		buildQueryRecursively(entity, "/", filter, select, from, join, where, params, 0, fetchDepth);
 	}
 	
-	private void buildQueryRecursively(DatabaseEntity entity, CriteriaGroup filter, StringBuilder select, StringBuilder from, StringBuilder join, StringBuilder where, List<Object> params, int currentDepth, int fetchDepth) throws Exception {
+	private void buildQueryRecursively(DatabaseEntity entity, String path, CriteriaGroup filter, StringBuilder select, StringBuilder from, StringBuilder join, StringBuilder where, List<Object> params, int currentDepth, int fetchDepth) throws Exception {
+		
+		currentDepth++;
+		
 		if (select.length() == 0) {
 			select.append("SELECT " + getColumnsCsvWithAlias(entity.getTableName(), entity.getColumnNames(true)));
 			from.append(" FROM " + entity.getTableName());
@@ -464,18 +470,17 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
 				where.append(" WHERE " + wp.toString());
 			}
 		}
-		currentDepth++;
 		
 		final Field aliasField = findField(entity.getClass(), "tableAlias");
 		final String entityTableAlias;
-		// always true for the main entity
+		// always true for the main entity. We use this later for constructing the JOIN part
 		if (aliasField.get(entity) == null) {
 			entityTableAlias = entity.getTableName();
 		}
 		else {
 			entityTableAlias = String.valueOf(aliasField.get(entity));
 		}
-		 
+		
 		for (Field field : entity.fields) {
 			// only join children to the select if they are annotated with the MappingRelation annotation
 			if (field.getAnnotation(MappingRelation.class) != null) {
@@ -497,6 +502,10 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
 				else {
 					return;
 				}
+				// cycle detected. skip this entity to prevent an infinite loop
+				if (path.contains(childEntity.getTableName())) {
+					continue;
+				}
     			String childAlias = entity.getTableName() + "_" + field.getName();
     			aliasField.set(childEntity, childAlias);
     			select.append(", ").append(getColumnsCsvWithAlias(childAlias, childEntity.getColumnNames(true)));
@@ -509,8 +518,11 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
     			else {
     				join.append(" LEFT JOIN " + childEntity.getTableName() + " " + childAlias + " ON " + childAlias + "." + relation.joinedColumnName() + " = " + entityTableAlias + "." + relation.masterColumnName());
     			}
-    			
-    			buildQueryRecursively(childEntity, filter, select, from, join, where, params, currentDepth);
+    			// keep track of the current level in the tree 
+				path += "/" + entity.getTableName();
+				buildQueryRecursively(childEntity, path, filter, select, from, join, where, params, currentDepth, fetchDepth);
+				path = path.substring(0, path.lastIndexOf("/"));
+    				
 			}
 			// this is a misconfiguration
 			else if (DatabaseEntity.class.isAssignableFrom(field.getType())) {

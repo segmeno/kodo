@@ -1,6 +1,7 @@
 package com.segmeno.kodo.entity;
 
 import java.util.Date;
+import java.util.List;
 
 import com.segmeno.kodo.annotation.MappingRelation;
 import com.segmeno.kodo.annotation.PrimaryKey;
@@ -22,6 +23,9 @@ public class TestRole extends DatabaseEntity {
 	
 	@MappingRelation(masterColumnName="secondaryColorId", joinedColumnName="id")
 	public TestType secondaryColor;
+	
+	@MappingRelation(mappingTableName="tbUserRole", masterColumnName="RoleID", joinedColumnName="UserID")
+	public List<TestUser> users;
 	
 	@Override
 	public String getTableName() {

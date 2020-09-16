@@ -5,7 +5,7 @@ import java.util.List;
 
 
 public class CriteriaGroup {
-	private final  Operator operator;
+	private  Operator operator = Operator.AND;
 	private final List<Criteria> criterias = new ArrayList<Criteria>();
 	
 	public CriteriaGroup(Operator operator, List<Criteria> criterias) {
@@ -20,6 +20,9 @@ public class CriteriaGroup {
 	
 	public CriteriaGroup(Operator operator) {
 		this.operator = operator;
+	}
+	
+	public CriteriaGroup() {
 	}
 
 	public Operator getOperator() {

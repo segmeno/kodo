@@ -83,14 +83,14 @@ public class DataAccessManagerTest {
 	@Test
 	public void countElemTest() throws Exception {
 		long count = manager.getElemCount(TestUser.class);
-		assertTrue(count == 3);
+		assertTrue(count == 2);
 	}
 
 	@Test
 	public void getElemsTest() throws Exception {
 
 		final List<TestUser> users = manager.getElems(TestUser.class);
-		assertTrue(users.size() == 3);
+		assertTrue(users.size() == 2);
 
 		final TestUser tom = users.stream().filter(user -> user.name.equals("Tom")).findFirst().orElse(null);
 		assertNotNull(tom);
@@ -141,6 +141,9 @@ public class DataAccessManagerTest {
 		assertTrue(manager.getElemCount(TestUser.class) == 3);
 		assertTrue(manager.getElemCount(TestAddress.class) == 4);
 		assertTrue(manager.getElemCount(TestType.class) == 6);
+		
+		// cleanup
+		manager.deleteElems(new Criteria("Name", Operator.EQUALS, "Ted"), TestUser.class);
 	}
 
 	@Test
