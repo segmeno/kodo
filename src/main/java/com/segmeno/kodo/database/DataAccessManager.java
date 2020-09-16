@@ -166,7 +166,7 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
 					final String entityField = childAlias + tableColDelimiter + field.getName();
 					
 					if (fullName.equals(entityField)) {
-						field.set(entity, cell.getValue());
+						field.set(entity, convertTo(field.getType(), cell.getValue()));
 						break;
 					}
 				}
@@ -254,7 +254,8 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
 	    			final List<DatabaseEntity> list = (List)field.get(baseEntity);
 	    			for (DatabaseEntity child : list) {
 	    				final Field fkField = child.fields.stream().filter(f -> f.getName().equalsIgnoreCase(field.getAnnotation(MappingRelation.class).joinedColumnName())).findFirst().orElse(null);
-	    				fkField.set(child, baseEntity.getPrimaryKeyValue());
+    					fkField.set(child, convertTo(fkField.getType(), baseEntity.getPrimaryKeyValue()));
+    					
 	    				if (child.getPrimaryKeyValue() == null) {
 	    					addElemRecursively(child);
 	    				}
@@ -264,7 +265,7 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
 		}
     }
     
-    @Transactional(propagation = Propagation.REQUIRED)
+	@Transactional(propagation = Propagation.REQUIRED)
 	public void updateElems(List<DatabaseEntity> entities) throws Exception {
     	for (DatabaseEntity entity : entities) {
     		updateElem(entity);
@@ -529,6 +530,30 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
     		return findField(clazz.getSuperclass(), fieldName);
     	}
 		return null;
+	}
+    
+    /**
+     * checks if the type and object are numbers. Then converts into the correct type
+     * @param type
+     * @param pk
+     * @return
+     */
+    private Object convertTo(Class<?> type, Object obj) {
+    	if (obj instanceof Number && Number.class.isAssignableFrom(type)) {
+    		if (Long.class.isAssignableFrom(type)) {
+    			return ((Number)obj).longValue();
+    		}
+    		if (Integer.class.isAssignableFrom(type)) {
+    			return ((Number)obj).intValue();
+    		}
+    		if (Double.class.isAssignableFrom(type)) {
+    			return ((Number)obj).doubleValue();
+    		}
+    		if (Float.class.isAssignableFrom(type)) {
+    			return ((Number)obj).floatValue();
+    		}
+    	}
+		return obj;
 	}
 
 	public static String sqlPrettyPrint(String sql) {

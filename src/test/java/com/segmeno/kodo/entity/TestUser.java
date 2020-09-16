@@ -13,7 +13,7 @@ import com.segmeno.kodo.database.DatabaseEntity;
 public class TestUser extends DatabaseEntity {
 
 	@PrimaryKey
-	public Integer id;
+	public Long id;
 	
 	public String name;
 	
