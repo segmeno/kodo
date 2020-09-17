@@ -10,7 +10,6 @@ import java.util.Map;
 
 import org.apache.log4j.Logger;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.segmeno.kodo.annotation.Column;
 import com.segmeno.kodo.annotation.DbIgnore;
 import com.segmeno.kodo.annotation.MappingRelation;
@@ -83,7 +82,6 @@ public abstract class DatabaseEntity {
 		return map;		
 	}
 	
-	@JsonIgnore
 	/**
 	 * 
 	 * @return the primary key column name
