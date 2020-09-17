@@ -100,7 +100,7 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
 		final DatabaseEntity mainEntity = entityType.getConstructor().newInstance();
     	final String query = buildQuery(mainEntity, advancedCriteria, params, fetchDepth);
     	
-    	log.debug("Query: " + sqlPrettyPrint(query) + "\t\t" + params);
+    	log.debug("Query: " + sqlPrettyPrint(query) + "\t" + params);
 		final List<Map<String,Object>> rows = jdbcTemplate.queryForList(query, params.toArray());
 		return rowsToObjects(mainEntity, rows);
     }
@@ -118,17 +118,19 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
 				baseEntity = baseEntity.getClass().getConstructor().newInstance();
 				alreadyFilledObjects.clear();
 			}
-			rowToEntity(baseEntity, baseEntity.getTableName(), row, alreadyFilledObjects);
+			else {
+				baseEntity = (DatabaseEntity)resultMap.get(pk);
+			}
+			rowToEntity(baseEntity, baseEntity.getTableName(), "/", row, alreadyFilledObjects);
 			resultMap.put(pk, (T)baseEntity);
 		}
 		return resultMap.values().stream().collect(Collectors.toList());
 	}
 	
-	private void rowToEntity(DatabaseEntity entity, String childAlias, Map<String,Object> row, Map<String,Object> alreadyFilledObjects) throws Exception {
-		
+	private void rowToEntity(DatabaseEntity entity, String alias, String path, Map<String,Object> row, Map<String,Object> alreadyFilledObjects) throws Exception {
 		// first thing to do: retrieve pk value and build unique key
-		final String pk = String.valueOf(getValueFromRow(childAlias, entity.getPrimaryKeyColumn(), row));
-		final String uniqueKey = childAlias + "#" + pk;
+		final String pk = String.valueOf(getValueFromRow(alias, entity.getPrimaryKeyColumn(), row));
+		final String uniqueKey = alias + "#" + pk;
 		
 		for (Field field : entity.fields) {
 			// search for child entities
@@ -139,26 +141,38 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
 					final Type genericType = ((ParameterizedType) field.getGenericType()).getActualTypeArguments()[0];
 	    			final Class<?> genericClass = Class.forName(genericType.getTypeName());
 	    			childEntity = (DatabaseEntity)genericClass.getConstructor().newInstance();
-	    			childAlias = entity.getTableName() + "_" + field.getName();
-	    			String childPk = String.valueOf(getValueFromRow(childAlias, childEntity.getPrimaryKeyColumn(), row));
-	    			String childUniqueKey = childAlias + "#" + childPk;
+	    			alias = entity.getTableName() + "_" + field.getName();
+	    			Object childPk = getValueFromRow(alias, childEntity.getPrimaryKeyColumn(), row);
+	    			String childUniqueKey = alias + "#" + childPk;
 	    			
-					if (!alreadyFilledObjects.containsKey(childUniqueKey)) {
-						final List<DatabaseEntity> list = (List)field.get(entity);
-						// list can be null if the fetch depth prevented the list element to be filled
-						if (list != null) {
-							list.add(childEntity);
-							field.set(entity, list);
-							rowToEntity(childEntity, childAlias, row, alreadyFilledObjects);
+					if (childPk != null && !alreadyFilledObjects.containsKey(childUniqueKey) && !path.contains(childEntity.getTableName())) {
+						List<DatabaseEntity> list = (List)field.get(entity);
+						if (list == null) {
+							list = new ArrayList<>();
 						}
+						list.add(childEntity);
+						field.set(entity, list);
+						
+						// keep track of the current level in the tree 
+						path += "/" + entity.getTableName();
+						rowToEntity(childEntity, alias, path, row, alreadyFilledObjects);
+						path = path.substring(0, path.lastIndexOf("/"));
 					}
 				}
 				else if (DatabaseEntity.class.isAssignableFrom(field.getType())) {
 					childEntity = (DatabaseEntity)field.getType().getConstructor().newInstance();
-					field.set(entity, childEntity);
-					childAlias = entity.getTableName() + "_" + field.getName();
-					if (!alreadyFilledObjects.containsKey(uniqueKey)) {
-						rowToEntity(childEntity, childAlias, row, alreadyFilledObjects);
+					
+					alias = entity.getTableName() + "_" + field.getName();
+					Object childPk = getValueFromRow(alias, childEntity.getPrimaryKeyColumn(), row);
+					String childUniqueKey = alias + "#" + childPk;
+					
+					if (childPk != null && !alreadyFilledObjects.containsKey(childUniqueKey) && !path.contains(childEntity.getTableName())) {
+						field.set(entity, childEntity);
+						
+						// keep track of the current level in the tree 
+						path += "/" + entity.getTableName();
+						rowToEntity(childEntity, alias, path, row, alreadyFilledObjects);
+						path = path.substring(0, path.lastIndexOf("/"));
 					}
 				}
 			}
@@ -166,7 +180,7 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
 			else {
 				for (Map.Entry<String, Object> cell : row.entrySet()) {
 					final String fullName = cell.getKey();
-					final String entityField = childAlias + tableColDelimiter + field.getName();
+					final String entityField = alias + tableColDelimiter + field.getName();
 					
 					if (fullName.equals(entityField)) {
 						field.set(entity, convertTo(field.getType(), cell.getValue()));
@@ -204,7 +218,8 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
 		final StringBuilder from = new StringBuilder();
 		final StringBuilder join = new StringBuilder();
 		final StringBuilder where = new StringBuilder();
-		buildQueryRecursively(mainEntity, criteria, select, from, join, where, params, 0);
+		final StringBuilder orderBy = new StringBuilder();
+		buildQueryRecursively(mainEntity, criteria, select, from, join, where, orderBy, params, 0);
 		
 		final String sql = "SELECT COUNT (DISTINCT " + mainEntity.getTableName() + "." + mainEntity.getPrimaryKeyColumn() + ")" + from.toString() + join.toString() + where.toString();
 		
@@ -252,7 +267,7 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
 		}
 		for (Field field : baseEntity.fields) {
 			if (field.getAnnotation(MappingRelation.class) != null && field.getAnnotation(MappingRelation.class).mappingTableName().isEmpty()) {
-				// these are dependant child elements which will be created after creating the parent element
+				// these are dependent child elements which will be created after creating the parent element
 				if (List.class.isAssignableFrom(field.getType())) {
 	    			final List<DatabaseEntity> list = (List)field.get(baseEntity);
 	    			for (DatabaseEntity child : list) {
@@ -449,15 +464,16 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
 		final StringBuilder from = new StringBuilder();
 		final StringBuilder join = new StringBuilder();
 		final StringBuilder where = new StringBuilder();
-		buildQueryRecursively(entity, "/", filter, select, from, join, where, params, 0, fetchDepth);
-		return select.toString() + from.toString() + join.toString() + where.toString();
+		final StringBuilder orderBy = new StringBuilder();
+		buildQueryRecursively(entity, "/", filter, select, from, join, where, orderBy, params, 0, fetchDepth);
+		return select.toString() + from.toString() + join.toString() + where.toString() + orderBy.toString();
 	}
 	
-	private void buildQueryRecursively(DatabaseEntity entity, CriteriaGroup filter, StringBuilder select, StringBuilder from, StringBuilder join, StringBuilder where, List<Object> params, int fetchDepth) throws Exception {
-		buildQueryRecursively(entity, "/", filter, select, from, join, where, params, 0, fetchDepth);
+	private void buildQueryRecursively(DatabaseEntity entity, CriteriaGroup filter, StringBuilder select, StringBuilder from, StringBuilder join, StringBuilder where, StringBuilder orderBy, List<Object> params, int fetchDepth) throws Exception {
+		buildQueryRecursively(entity, "/", filter, select, from, join, where, orderBy, params, 0, fetchDepth);
 	}
 	
-	private void buildQueryRecursively(DatabaseEntity entity, String path, CriteriaGroup filter, StringBuilder select, StringBuilder from, StringBuilder join, StringBuilder where, List<Object> params, int currentDepth, int fetchDepth) throws Exception {
+	private void buildQueryRecursively(DatabaseEntity entity, String path, CriteriaGroup filter, StringBuilder select, StringBuilder from, StringBuilder join, StringBuilder where, StringBuilder orderBy, List<Object> params, int currentDepth, int fetchDepth) throws Exception {
 		
 		currentDepth++;
 		
@@ -468,6 +484,9 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
 				final WherePart wp = new WherePart(entity.getTableName(), filter);
 				params.addAll(wp.getValues());
 				where.append(" WHERE " + wp.toString());
+			}
+			if (orderBy.length() == 0) {
+				orderBy.append(" ORDER BY ").append(entity.getTableName()).append(".").append(entity.getPrimaryKeyColumn());
 			}
 		}
 		
@@ -520,7 +539,7 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
     			}
     			// keep track of the current level in the tree 
 				path += "/" + entity.getTableName();
-				buildQueryRecursively(childEntity, path, filter, select, from, join, where, params, currentDepth, fetchDepth);
+				buildQueryRecursively(childEntity, path, filter, select, from, join, where, orderBy, params, currentDepth, fetchDepth);
 				path = path.substring(0, path.lastIndexOf("/"));
     				
 			}
