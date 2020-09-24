@@ -8,7 +8,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.segmeno.kodo.annotation.Column;
 import com.segmeno.kodo.annotation.DbIgnore;
@@ -17,7 +18,8 @@ import com.segmeno.kodo.annotation.PrimaryKey;
 
 public abstract class DatabaseEntity {
 	
-	private static final Logger LOGGER = Logger.getLogger(DatabaseEntity.class);
+	private static final Logger LOGGER = LogManager.getLogger(DatabaseEntity.class);
+
 	// to be used within kodo framework only
 	@SuppressWarnings("unused")
 	private String tableAlias;

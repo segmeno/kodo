@@ -4,14 +4,15 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
-import com.segmeno.kodo.transport.CriteriaGroup;
 import com.segmeno.kodo.transport.Criteria;
+import com.segmeno.kodo.transport.CriteriaGroup;
 
 public class WherePart {
 	
-	protected final static Logger log = Logger.getLogger(WherePart.class);
+	private static final Logger log = LogManager.getLogger(WherePart.class);
 	
 	protected StringBuilder sb = new StringBuilder();
 	protected List<Object> params = new ArrayList<>();

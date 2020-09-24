@@ -12,7 +12,8 @@ import java.util.stream.Collectors;
 
 import javax.sql.DataSource;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.core.simple.SimpleJdbcInsert;
@@ -26,7 +27,7 @@ import com.segmeno.kodo.transport.Operator;
 
 public class DataAccessManager {
 
-protected final static Logger log = Logger.getLogger(DataAccessManager.class);
+	private static final Logger log = LogManager.getLogger(DataAccessManager.class);
 	
 	protected String tableColDelimiter = ".";
 	protected DataSource dataSource;
@@ -257,14 +258,10 @@ protected final static Logger log = Logger.getLogger(DataAccessManager.class);
 	            .withTableName(baseEntity.getTableName())
 	            .usingGeneratedKeyColumns(baseEntity.getPrimaryKeyColumn())
 	            .usingColumns(baseEntity.getColumnNames(false).toArray(new String[0]));
-    	try {
-			final Number key = insert.executeAndReturnKey(baseEntity.toMap());
-			baseEntity.setPrimaryKeyValue(key.intValue());
-    	} catch (Exception e) {
-			log.warn("could not insert " + baseEntity.getClass().getSimpleName()+ ": " + e.getMessage());
-			log.warn("trying alternative method");
-			baseEntity.setPrimaryKeyValue(jdbcTemplate.queryForObject("SELECT MAX( " + baseEntity.getPrimaryKeyColumn() + ") FROM " + baseEntity.getTableName(), Long.class));
-		}
+    	
+		final Number key = insert.executeAndReturnKey(baseEntity.toMap());
+		baseEntity.setPrimaryKeyValue(key.intValue());
+    	
 		for (Field field : baseEntity.fields) {
 			if (field.getAnnotation(MappingRelation.class) != null && field.getAnnotation(MappingRelation.class).mappingTableName().isEmpty()) {
 				// these are dependent child elements which will be created after creating the parent element
