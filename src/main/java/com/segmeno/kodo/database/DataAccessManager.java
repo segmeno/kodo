@@ -566,7 +566,7 @@ public class DataAccessManager {
      * @param pk
      * @return
      */
-    private Object convertTo(Class<?> type, Object obj) {
+    public static Object convertTo(Class<?> type, Object obj) {
     	if (obj instanceof Number && Number.class.isAssignableFrom(type)) {
     		if (Long.class.isAssignableFrom(type)) {
     			return ((Number)obj).longValue();

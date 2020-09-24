@@ -120,7 +120,7 @@ public abstract class DatabaseEntity {
 		if (primaryKey == null) {
 			throw new Exception("Could not find primary key for entity '" + this.getClass().getName() +"'. Please use the '@PrimaryKey' annotation to mark a field as PrimaryKey!");			
 		}
-		primaryKey.set(this, id);
+		primaryKey.set(this, DataAccessManager.convertTo(primaryKey.getType(), id));
 	}
 	
 	/**
