@@ -260,7 +260,7 @@ public class DataAccessManager {
 	            .usingColumns(baseEntity.getColumnNames(false).toArray(new String[0]));
     	
 		final Number key = insert.executeAndReturnKey(baseEntity.toMap());
-		baseEntity.setPrimaryKeyValue(key.intValue());
+		baseEntity.setPrimaryKeyValue(key);
     	
 		for (Field field : baseEntity.fields) {
 			if (field.getAnnotation(MappingRelation.class) != null && field.getAnnotation(MappingRelation.class).mappingTableName().isEmpty()) {
@@ -561,13 +561,13 @@ public class DataAccessManager {
 	}
     
     /**
-     * checks if the type and object are numbers. Then converts into the correct type
+     * checks if the type and object. Then converts into the correct type
      * @param type
      * @param pk
      * @return
      */
     public static Object convertTo(Class<?> type, Object obj) {
-    	if (obj instanceof Number && Number.class.isAssignableFrom(type)) {
+    	if (Number.class.isAssignableFrom(type) && obj instanceof Number) {
     		if (Long.class.isAssignableFrom(type)) {
     			return ((Number)obj).longValue();
     		}
@@ -580,6 +580,9 @@ public class DataAccessManager {
     		if (Float.class.isAssignableFrom(type)) {
     			return ((Number)obj).floatValue();
     		}
+    	}
+    	if (String.class.isAssignableFrom(type)) {
+    		obj.toString();
     	}
 		return obj;
 	}
