@@ -48,6 +48,14 @@ public class TestUser extends DatabaseEntity {
 }
 ```
 
+### @CustomSql
+
+if the database entity is not representing a table or if it is required to inject own SQL, the @CustomSql annotation can be used. This can be annotated on class level.
+If used, the getTableName() method just needs to return null. Child entities which are of type List<? extends DatabaseEntity> do not need any @MappingRelation annotation. Instead, the custom sql query needs to be built in a way that all child entities are queried correctly.
+
+To see a working example, check the com.segmeno.kodo.entity.CustomElement class from the test package.
+
+
 ## Setup of the DataAccessManager Class
 
 the Data Access Manager can be instantiated by passing in a JdbcTemplate or a DataSource object.
@@ -85,3 +93,4 @@ updating requires the primary key value to be set. If not, the element will be a
 ## adding elements
 
 this will add all required child elements first and all depending child elements after inserting the main entity.
+

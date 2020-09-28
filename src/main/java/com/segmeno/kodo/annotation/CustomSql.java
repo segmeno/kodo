@@ -10,7 +10,7 @@ import java.lang.annotation.Target;
 public @interface CustomSql {
 
 	/**
-	 * sql query to be used as subselect for the annotated class
+	 * sql query to be used as select for the annotated class
 	 * @return
 	 */
 	String selectQuery() default "";

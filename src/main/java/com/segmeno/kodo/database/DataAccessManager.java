@@ -151,30 +151,36 @@ public class DataAccessManager {
 				if (DatabaseEntity.class.isAssignableFrom(genericClass)) {
 					
 	    			final DatabaseEntity childEntity = (DatabaseEntity)genericClass.getConstructor().newInstance();
-	    			alias = entity.getTableName() + "_" + field.getName();
+	    			// this is allowed to happen if the database entity has a custom sql annotation
+	    			if (entity.getTableName() == null) {
+	    				if (entity.getClass().isAnnotationPresent(CustomSql.class)) {
+	    					alias = field.getName();
+						}
+	    				else {
+	    					throw new Exception("no table name defined! Either change 'getTableName' method of " + entity.getClass().getName() + " to return a value or use the @CustomSql annotation");
+	    				}
+	    			}
+	    			else {
+	    				alias = entity.getTableName() + "_" + field.getName();
+	    			}
+	    			
 	    			Object childPk = getValueFromRow(alias, childEntity.getPrimaryKeyColumn(), row);
 	    			String childUniqueKey = alias + "#" + childPk;
-	    			
-//					if (entity.getClass().isAnnotationPresent(CustomSql.class)) {
-//						
-//					}
-//					else if (field.getAnnotation(MappingRelation.class) != null) {
 						
-						if (childPk != null && !alreadyFilledObjects.containsKey(childUniqueKey) && !path.contains(childEntity.getTableName())) {
-							
-							List<DatabaseEntity> list = (List)field.get(entity);
-							if (list == null) {
-								list = new ArrayList<>();
-							}
-							list.add(childEntity);
-							field.set(entity, list);
-							
-							// keep track of the current level in the tree 
-							path += "/" + entity.getTableName();
-							rowToEntity(childEntity, alias, path, row, alreadyFilledObjects);
-							path = path.substring(0, path.lastIndexOf("/"));
+					if (childPk != null && !alreadyFilledObjects.containsKey(childUniqueKey) && !path.contains(childEntity.getTableName())) {
+						
+						List<DatabaseEntity> list = (List)field.get(entity);
+						if (list == null) {
+							list = new ArrayList<>();
 						}
-//					}
+						list.add(childEntity);
+						field.set(entity, list);
+						
+						// keep track of the current level in the tree 
+						path += "/" + entity.getTableName();
+						rowToEntity(childEntity, alias, path, row, alreadyFilledObjects);
+						path = path.substring(0, path.lastIndexOf("/"));
+					}
 				}
 			}
 			else if (DatabaseEntity.class.isAssignableFrom(field.getType())) {
