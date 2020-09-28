@@ -19,12 +19,14 @@ import org.junit.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowCallbackHandler;
 
+import com.segmeno.kodo.annotation.CustomSql;
+import com.segmeno.kodo.entity.CustomElement;
 import com.segmeno.kodo.entity.TestAddress;
 import com.segmeno.kodo.entity.TestRole;
 import com.segmeno.kodo.entity.TestType;
 import com.segmeno.kodo.entity.TestUser;
-import com.segmeno.kodo.transport.CriteriaGroup;
 import com.segmeno.kodo.transport.Criteria;
+import com.segmeno.kodo.transport.CriteriaGroup;
 import com.segmeno.kodo.transport.Operator;
 
 public class DataAccessManagerTest {
@@ -84,6 +86,24 @@ public class DataAccessManagerTest {
 	public void countElemTest() throws Exception {
 		long count = manager.getElemCount(TestUser.class);
 		assertTrue(count == 2);
+	}
+	
+	@Test
+	public void customSqlTest() throws Exception {
+		List<CustomElement> customs = manager.getElems(CustomElement.class);
+		assertTrue(customs.size() == 2);
+	}
+	
+	@Test
+	public void updateElemTest() throws Exception {
+		
+		TestUser u = new TestUser();
+		u.name = "Bill";
+		u.pwHash = "ttt";
+		
+		u = manager.addElem(u);
+		manager.updateElem(u);
+		manager.deleteElems(new Criteria("name", Operator.EQUALS, "Bill"), TestUser.class);
 	}
 
 	@Test

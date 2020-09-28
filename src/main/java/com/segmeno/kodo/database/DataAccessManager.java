@@ -20,6 +20,7 @@ import org.springframework.jdbc.core.simple.SimpleJdbcInsert;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.segmeno.kodo.annotation.CustomSql;
 import com.segmeno.kodo.annotation.MappingRelation;
 import com.segmeno.kodo.transport.Criteria;
 import com.segmeno.kodo.transport.CriteriaGroup;
@@ -97,13 +98,19 @@ public class DataAccessManager {
 	 */
 	public <T> List<T> getElems(CriteriaGroup advancedCriteria, Class<? extends DatabaseEntity> entityType, int fetchDepth) throws Exception {
 
-		final List<Object> params = new ArrayList<Object>();
-		final DatabaseEntity mainEntity = entityType.getConstructor().newInstance();
-    	final String query = buildQuery(mainEntity, advancedCriteria, params, fetchDepth);
-    	
-    	log.debug("Query: " + sqlPrettyPrint(query) + "\t" + params);
-		final List<Map<String,Object>> rows = jdbcTemplate.queryForList(query, params.toArray());
-		return rowsToObjects(mainEntity, rows);
+		try {
+			final List<Object> params = new ArrayList<Object>();
+			final DatabaseEntity mainEntity = entityType.getConstructor().newInstance();
+			final String query = buildQuery(mainEntity, advancedCriteria, params, fetchDepth);
+			
+			log.debug("Query: " + sqlPrettyPrint(query) + "\t" + params);
+			final List<Map<String,Object>> rows = jdbcTemplate.queryForList(query, params.toArray());
+			return rowsToObjects(mainEntity, rows);
+			
+		} catch (Exception e) {
+			log.error("could not get elements of type " + entityType.getName(), e);
+			throw e;
+		}
     }
 	
 	private <T> List<T> rowsToObjects(DatabaseEntity baseEntity, List<Map<String, Object>> rows) throws Exception {
@@ -122,6 +129,7 @@ public class DataAccessManager {
 			else {
 				baseEntity = (DatabaseEntity)resultMap.get(pk);
 			}
+			final String alias = baseEntity.getTableName() != null ? baseEntity.getTableName() : baseEntity.getClass().getSimpleName();
 			rowToEntity(baseEntity, baseEntity.getTableName(), "/", row, alreadyFilledObjects);
 			resultMap.put(pk, (T)baseEntity);
 		}
@@ -134,56 +142,63 @@ public class DataAccessManager {
 		final String uniqueKey = alias + "#" + pk;
 		
 		for (Field field : entity.fields) {
-			// search for child entities
-			if (field.getAnnotation(MappingRelation.class) != null) {
-				final DatabaseEntity childEntity;
+			
+			if (List.class.isAssignableFrom(field.getType())) {
 				
-				if (List.class.isAssignableFrom(field.getType())) {
-					final Type genericType = ((ParameterizedType) field.getGenericType()).getActualTypeArguments()[0];
-	    			final Class<?> genericClass = Class.forName(genericType.getTypeName());
-	    			childEntity = (DatabaseEntity)genericClass.getConstructor().newInstance();
+				final Type genericType = ((ParameterizedType) field.getGenericType()).getActualTypeArguments()[0];
+    			final Class<?> genericClass = Class.forName(genericType.getTypeName());
+    			
+				if (DatabaseEntity.class.isAssignableFrom(genericClass)) {
+					
+	    			final DatabaseEntity childEntity = (DatabaseEntity)genericClass.getConstructor().newInstance();
 	    			alias = entity.getTableName() + "_" + field.getName();
 	    			Object childPk = getValueFromRow(alias, childEntity.getPrimaryKeyColumn(), row);
 	    			String childUniqueKey = alias + "#" + childPk;
 	    			
-					if (childPk != null && !alreadyFilledObjects.containsKey(childUniqueKey) && !path.contains(childEntity.getTableName())) {
-						List<DatabaseEntity> list = (List)field.get(entity);
-						if (list == null) {
-							list = new ArrayList<>();
+//					if (entity.getClass().isAnnotationPresent(CustomSql.class)) {
+//						
+//					}
+//					else if (field.getAnnotation(MappingRelation.class) != null) {
+						
+						if (childPk != null && !alreadyFilledObjects.containsKey(childUniqueKey) && !path.contains(childEntity.getTableName())) {
+							
+							List<DatabaseEntity> list = (List)field.get(entity);
+							if (list == null) {
+								list = new ArrayList<>();
+							}
+							list.add(childEntity);
+							field.set(entity, list);
+							
+							// keep track of the current level in the tree 
+							path += "/" + entity.getTableName();
+							rowToEntity(childEntity, alias, path, row, alreadyFilledObjects);
+							path = path.substring(0, path.lastIndexOf("/"));
 						}
-						list.add(childEntity);
-						field.set(entity, list);
-						
-						// keep track of the current level in the tree 
-						path += "/" + entity.getTableName();
-						rowToEntity(childEntity, alias, path, row, alreadyFilledObjects);
-						path = path.substring(0, path.lastIndexOf("/"));
-					}
-				}
-				else if (DatabaseEntity.class.isAssignableFrom(field.getType())) {
-					childEntity = (DatabaseEntity)field.getType().getConstructor().newInstance();
-					
-					alias = entity.getTableName() + "_" + field.getName();
-					Object childPk = getValueFromRow(alias, childEntity.getPrimaryKeyColumn(), row);
-					String childUniqueKey = alias + "#" + childPk;
-					
-					if (childPk != null && !alreadyFilledObjects.containsKey(childUniqueKey) && !path.contains(childEntity.getTableName())) {
-						field.set(entity, childEntity);
-						
-						// keep track of the current level in the tree 
-						path += "/" + entity.getTableName();
-						rowToEntity(childEntity, alias, path, row, alreadyFilledObjects);
-						path = path.substring(0, path.lastIndexOf("/"));
-					}
+//					}
 				}
 			}
-			// search for the field and fill it
+			else if (DatabaseEntity.class.isAssignableFrom(field.getType())) {
+				
+				final DatabaseEntity childEntity = (DatabaseEntity)field.getType().getConstructor().newInstance();	
+				alias = entity.getTableName() + "_" + field.getName();
+				Object childPk = getValueFromRow(alias, childEntity.getPrimaryKeyColumn(), row);
+				String childUniqueKey = alias + "#" + childPk;
+				
+				if (childPk != null && !alreadyFilledObjects.containsKey(childUniqueKey) && !path.contains(childEntity.getTableName())) {
+					field.set(entity, childEntity);
+					
+					// keep track of the current level in the tree 
+					path += "/" + entity.getTableName();
+					rowToEntity(childEntity, alias, path, row, alreadyFilledObjects);
+					path = path.substring(0, path.lastIndexOf("/"));
+				}
+			}
 			else {
 				for (Map.Entry<String, Object> cell : row.entrySet()) {
 					final String fullName = cell.getKey();
-					final String entityField = alias + tableColDelimiter + field.getName();
+					final String entityField = alias != null ? alias + tableColDelimiter + field.getName() : field.getName();
 					
-					if (fullName.equals(entityField)) {
+					if (fullName.equalsIgnoreCase(entityField)) {
 						field.set(entity, convertTo(field.getType(), cell.getValue()));
 						break;
 					}
@@ -194,9 +209,11 @@ public class DataAccessManager {
 	}
 	
 	private Object getValueFromRow(String alias, String fieldName, Map<String,Object> row) {
-		fieldName = alias + tableColDelimiter + fieldName;
+		if (alias != null) {
+			fieldName = alias + tableColDelimiter + fieldName;
+		}
 		for (Map.Entry<String, Object> cell : row.entrySet()) {
-			if (cell.getKey().equals(fieldName)) {
+			if (cell.getKey().equalsIgnoreCase(fieldName)) {
 				return cell.getValue();
 			}
 		}
@@ -212,20 +229,26 @@ public class DataAccessManager {
     }
     
     public Long getElemCount(CriteriaGroup criteria, Class<? extends DatabaseEntity> entityType) throws Exception {
-    	final DatabaseEntity mainEntity = entityType.getConstructor().newInstance();
+    	try {
+			final DatabaseEntity mainEntity = entityType.getConstructor().newInstance();
 
-		final List<Object> params = new ArrayList<Object>();
-		final StringBuilder select = new StringBuilder();
-		final StringBuilder from = new StringBuilder();
-		final StringBuilder join = new StringBuilder();
-		final StringBuilder where = new StringBuilder();
-		final StringBuilder orderBy = new StringBuilder();
-		buildQueryRecursively(mainEntity, criteria, select, from, join, where, orderBy, params, 0);
-		
-		final String sql = "SELECT COUNT (DISTINCT " + mainEntity.getTableName() + "." + mainEntity.getPrimaryKeyColumn() + ")" + from.toString() + join.toString() + where.toString();
-		
-		log.debug("Query: " + sqlPrettyPrint(sql) + "\t[" + toCsv(params.toArray()) + "]");
-		return jdbcTemplate.queryForObject(sql, params.toArray(), Long.class);
+			final List<Object> params = new ArrayList<Object>();
+			final StringBuilder select = new StringBuilder();
+			final StringBuilder from = new StringBuilder();
+			final StringBuilder join = new StringBuilder();
+			final StringBuilder where = new StringBuilder();
+			final StringBuilder orderBy = new StringBuilder();
+			buildQueryRecursively(mainEntity, criteria, select, from, join, where, orderBy, params, 0);
+			
+			final String sql = "SELECT COUNT (DISTINCT " + mainEntity.getTableName() + "." + mainEntity.getPrimaryKeyColumn() + ")" + from.toString() + join.toString() + where.toString();
+			
+			log.debug("Query: " + sqlPrettyPrint(sql) + "\t[" + toCsv(params.toArray()) + "]");
+			return jdbcTemplate.queryForObject(sql, params.toArray(), Long.class);
+			
+		} catch (Exception e) {
+			log.error("could not count elements of type " + entityType.getName(), e);
+			throw e;
+		}
     }
 	
     /**
@@ -237,7 +260,12 @@ public class DataAccessManager {
     @SuppressWarnings("unchecked")
 	@Transactional(propagation = Propagation.REQUIRED)
     public <T> T addElem(DatabaseEntity obj) throws Exception {
-    	addElemRecursively(obj);
+    	try {
+			addElemRecursively(obj);
+		} catch (Exception e) {
+			log.error("could not add element of type " + obj.getClass().getName(), e);
+			throw e;
+		}
     	return (T)obj;
     }
     
@@ -293,25 +321,30 @@ public class DataAccessManager {
 			addElem(obj);
 		}
     	else {
-    		// first, update the main entity
-    		final StringBuilder sb = new StringBuilder();
-    		for (String col : obj.getColumnNames(false)) {
-    			sb.append(col.toLowerCase()).append(" = :").append(col.toLowerCase()).append(", ");
-        	}
-        	if (sb.length() > 1) {
-        		sb.setLength(sb.length()-2);	// crop last comma
-        	}
-        	final String stmt = "UPDATE " + obj.getTableName() + " SET " + sb.toString() + " WHERE " + obj.getPrimaryKeyColumn() + " = :" + obj.getPrimaryKeyColumn();
-        	log.debug("Query: " + sqlPrettyPrint(stmt) + "\t[" + toCsv(obj.toMap().values()) + "]");
-        	namedParameterJdbcTemplate.update(stmt, obj.toMap());
-        	
-        	// check if there is a list of sub entities which also need to be added or updated
-    		for (Map.Entry<Class<? extends DatabaseEntity>,List<DatabaseEntity>> entry : getAllChildEntities(obj, MappingTableBehaviour.IGNORE).entrySet()) {
-    			final List<DatabaseEntity> elements = entry.getValue();
-    			for (DatabaseEntity element : elements) {
-    				updateElem(element);
-    			}
-    		}
+    		try {
+				// first, update the main entity
+				final StringBuilder sb = new StringBuilder();
+				for (String col : obj.getColumnNames(false)) {
+					sb.append(col.toLowerCase()).append(" = :").append(col.toLowerCase()).append(", ");
+				}
+				if (sb.length() > 1) {
+					sb.setLength(sb.length()-2);	// crop last comma
+				}
+				final String stmt = "UPDATE " + obj.getTableName() + " SET " + sb.toString() + " WHERE " + obj.getPrimaryKeyColumn().toLowerCase() + " = :" + obj.getPrimaryKeyColumn().toLowerCase();
+				log.debug("Query: " + sqlPrettyPrint(stmt) + "\t[" + obj.toMap() + "]");
+				namedParameterJdbcTemplate.update(stmt, obj.toMap());
+				
+				// check if there is a list of sub entities which also need to be added or updated
+				for (Map.Entry<Class<? extends DatabaseEntity>,List<DatabaseEntity>> entry : getAllChildEntities(obj, MappingTableBehaviour.IGNORE).entrySet()) {
+					final List<DatabaseEntity> elements = entry.getValue();
+					for (DatabaseEntity element : elements) {
+						updateElem(element);
+					}
+				}
+			} catch (Exception e) {
+				log.error("could not update element of type " + obj.getClass().getName(), e);
+				throw e;
+			}
     	}
     }
     
@@ -333,11 +366,16 @@ public class DataAccessManager {
      */
 	@Transactional(propagation = Propagation.REQUIRED)
 	public void deleteElems(CriteriaGroup advancedCriteria, Class<? extends DatabaseEntity> entityType) throws Exception {
-		final DatabaseEntity obj = entityType.getConstructor().newInstance();
-		final WherePart whereClause = new WherePart(obj.getTableName(), advancedCriteria);
-		final String stmt = "SELECT " + obj.getPrimaryKeyColumn() + " FROM " + obj.getTableName() + " WHERE " + whereClause.toString();
-		
-		deleteElemsRecursively(obj, stmt, whereClause.getValues());
+		try {
+			final DatabaseEntity obj = entityType.getConstructor().newInstance();
+			final WherePart whereClause = new WherePart(obj.getTableName(), advancedCriteria);
+			final String stmt = "SELECT " + obj.getPrimaryKeyColumn() + " FROM " + obj.getTableName() + " WHERE " + whereClause.toString();
+			
+			deleteElemsRecursively(obj, stmt, whereClause.getValues());
+		} catch (Exception e) {
+			log.error("could not delete element of type " + entityType.getName(), e);
+			throw e;
+		}
 	}
 	
 	private void deleteElemsRecursively(DatabaseEntity entity, String stmt, List<Object> params) throws Exception {
@@ -473,6 +511,19 @@ public class DataAccessManager {
 	private void buildQueryRecursively(DatabaseEntity entity, String path, CriteriaGroup filter, StringBuilder select, StringBuilder from, StringBuilder join, StringBuilder where, StringBuilder orderBy, List<Object> params, int currentDepth, int fetchDepth) throws Exception {
 		
 		currentDepth++;
+		
+		// search for custom sql
+		if (entity.getClass().isAnnotationPresent(CustomSql.class)) {
+			final CustomSql customSql = entity.getClass().getAnnotation(CustomSql.class);
+			select.setLength(0);
+			select.append(customSql.selectQuery());
+			if (filter != null && !filter.getCriterias().isEmpty()) {
+				final WherePart wp = new WherePart(null, filter);
+				params.addAll(wp.getValues());
+				where.append(" WHERE " + wp.toString());
+			}
+			return;
+		}
 		
 		if (select.length() == 0) {
 			select.append("SELECT " + getColumnsCsvWithAlias(entity.getTableName(), entity.getColumnNames(true)));

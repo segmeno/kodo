@@ -79,7 +79,14 @@ public abstract class DatabaseEntity {
 			if (List.class.isAssignableFrom(f.getType())) {
 				continue;
 			}
-			map.put(f.getName().toLowerCase(), f.get(this));
+			final String colName;
+			if (f.getAnnotation(Column.class) != null && !f.getAnnotation(Column.class).columnName().isEmpty()) {
+				colName = f.getAnnotation(Column.class).columnName().toLowerCase();
+			}
+			else {
+				colName = f.getName().toLowerCase();
+			}
+			map.put(colName, f.get(this));
 		}
 		return map;		
 	}

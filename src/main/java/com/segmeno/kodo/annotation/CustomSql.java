@@ -5,14 +5,13 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
-@Target({ElementType.ANNOTATION_TYPE, ElementType.FIELD})
+@Target({ElementType.ANNOTATION_TYPE, ElementType.TYPE})
 @Retention(RetentionPolicy.RUNTIME)
-public @interface Column {
+public @interface CustomSql {
 
 	/**
-	 * the name database table column
+	 * sql query to be used as subselect for the annotated class
 	 * @return
 	 */
-	String columnName() default "";
-	
+	String selectQuery() default "";
 }

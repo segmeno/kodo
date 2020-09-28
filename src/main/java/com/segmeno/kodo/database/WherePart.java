@@ -39,8 +39,10 @@ public class WherePart {
 		if (columnNames != null) {
 			this.columnNames = columnNames.stream().map(col -> col.toUpperCase()).collect(Collectors.toList());
 		}
-		final List<Criteria> crits = adCrit.getCriterias();
 		
+		tableAlias = tableAlias != null ? tableAlias + "." : "";
+		
+		final List<Criteria> crits = adCrit.getCriterias();
 		if (adCrit != null && crits.size() > 0) {
 			sb.append("(");
 			
@@ -127,103 +129,103 @@ public class WherePart {
 	protected String contains(String tableAlias, Criteria criteria) {
 		final Object param = criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue();
 		params.add("%" + param + "%");
-		return tableAlias + "." + criteria.getFieldName() + " LIKE ?";
+		return tableAlias + criteria.getFieldName() + " LIKE ?";
 	}
 	
 	protected String icontains(String tableAlias, Criteria criteria) {
 		final Object param = criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue();
 		params.add("%" + param + "%");
-		return "LOWER(" + tableAlias + "." + criteria.getFieldName() + ") LIKE LOWER(?)";
+		return "LOWER(" + tableAlias + criteria.getFieldName() + ") LIKE LOWER(?)";
 	}
 	
 	protected String notContains(String tableAlias, Criteria criteria) {
 		final Object param = criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue();
 		params.add("%" + param + "%");
-		return tableAlias + "." + criteria.getFieldName() + " NOT LIKE ?";
+		return tableAlias + criteria.getFieldName() + " NOT LIKE ?";
 	}
 	
 	protected String equals(String tableAlias, Criteria criteria) {
 		params.add(criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue());
-		return tableAlias + "." + criteria.getFieldName() + " = ?";
+		return tableAlias + criteria.getFieldName() + " = ?";
 	}
 	
 	protected String iequals(String tableAlias, Criteria criteria) {
 		if (criteria.getStringValue() != null) {
 			params.add(criteria.getStringValue());
-			return "LOWER(" + tableAlias + "." + criteria.getFieldName() + ") LIKE LOWER(?)";
+			return "LOWER(" + tableAlias + criteria.getFieldName() + ") LIKE LOWER(?)";
 		}
 		else {
 			params.add(criteria.getNumberValue());
-			return tableAlias + "." + criteria.getFieldName() + " LIKE ?";
+			return tableAlias + criteria.getFieldName() + " LIKE ?";
 		}
 	}
 	
 	protected String greaterOrEqual(String tableAlias, Criteria criteria) {
 		params.add(criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue());
-		return tableAlias + "." + criteria.getFieldName() + " >= ?";
+		return tableAlias + criteria.getFieldName() + " >= ?";
 	}
 	
 	protected String greaterThan(String tableAlias, Criteria criteria) {
 		params.add(criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue());
-		return tableAlias + "." + criteria.getFieldName() + " > ?";
+		return tableAlias + criteria.getFieldName() + " > ?";
 	}
 	
 	protected String lessOrEqual(String tableAlias, Criteria criteria) {
 		params.add(criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue());
-		return tableAlias + "." + criteria.getFieldName() + " <= ?";
+		return tableAlias + criteria.getFieldName() + " <= ?";
 	}
 	
 	protected String lessThan(String tableAlias, Criteria criteria) {
 		params.add(criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue());
-		return tableAlias + "." + criteria.getFieldName() + " < ?";
+		return tableAlias + criteria.getFieldName() + " < ?";
 	}
 	
 	protected String startsWith(String tableAlias, Criteria criteria) {
 		final Object param = criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue();
 		params.add(param + "%");
-		return tableAlias + "." + criteria.getFieldName() + " LIKE ?";
+		return tableAlias + criteria.getFieldName() + " LIKE ?";
 	}
 	
 	protected String istartsWith(String tableAlias, Criteria criteria) {
 		final Object param = criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue();
 		params.add(param + "%");
-		return "LOWER(" + tableAlias + "." + criteria.getFieldName() + ") LIKE LOWER(?)";
+		return "LOWER(" + tableAlias + criteria.getFieldName() + ") LIKE LOWER(?)";
 	}
 	
 	protected String inotStartsWith(String tableAlias, Criteria criteria) {
 		final Object param = criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue();
 		params.add(param + "%");
-		return "LOWER(" + tableAlias + "." + criteria.getFieldName() + ") NOT LIKE LOWER(?)";
+		return "LOWER(" + tableAlias + criteria.getFieldName() + ") NOT LIKE LOWER(?)";
 	}
 	
 	protected String endsWith(String tableAlias, Criteria criteria) {
 		final Object param = criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue();
 		params.add("%" + param);
-		return tableAlias + "." + criteria.getFieldName() + " LIKE ?";
+		return tableAlias + criteria.getFieldName() + " LIKE ?";
 	}
 	
 	protected String iendsWith(String tableAlias, Criteria criteria) {
 		final Object param = criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue();
 		params.add("%" + param);
-		return "LOWER(" + tableAlias + "." + criteria.getFieldName() + ") LIKE LOWER(?)";
+		return "LOWER(" + tableAlias + criteria.getFieldName() + ") LIKE LOWER(?)";
 	}
 	
 	protected String inotEndsWith(String tableAlias, Criteria criteria) {
 		final Object param = criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue();
 		params.add("%" + param);
-		return "LOWER(" + tableAlias + "." + criteria.getFieldName() + ") NOT LIKE LOWER(?)";
+		return "LOWER(" + tableAlias + criteria.getFieldName() + ") NOT LIKE LOWER(?)";
 	}
 	
 	protected String isBlank(String tableAlias, Criteria criteria) {
-		return "(" + tableAlias + "." + criteria.getFieldName() + " = '' OR " + tableAlias + "." + criteria.getFieldName() + " IS NULL)";
+		return "(" + tableAlias + criteria.getFieldName() + " = '' OR " + tableAlias + criteria.getFieldName() + " IS NULL)";
 	}
 	
 	protected String notBlank(String tableAlias, Criteria criteria) {
-		return "(" + tableAlias + "." + criteria.getFieldName() + " != '' AND " + tableAlias + "." + criteria.getFieldName() + " IS NOT NULL)";
+		return "(" + tableAlias + criteria.getFieldName() + " != '' AND " + tableAlias + criteria.getFieldName() + " IS NOT NULL)";
 	}
 	
 	protected String notNull(String tableAlias, Criteria criteria) {
-		return tableAlias + "." + criteria.getFieldName() + " IS NOT NULL";
+		return tableAlias + criteria.getFieldName() + " IS NOT NULL";
 	}
 	
 	public boolean isEmpty() {
