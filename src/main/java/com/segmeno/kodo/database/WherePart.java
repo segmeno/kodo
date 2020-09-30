@@ -1,7 +1,9 @@
 package com.segmeno.kodo.database;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
@@ -9,10 +11,19 @@ import org.apache.logging.log4j.Logger;
 
 import com.segmeno.kodo.transport.Criteria;
 import com.segmeno.kodo.transport.CriteriaGroup;
+import com.segmeno.kodo.transport.Operator;
 
 public class WherePart {
 	
 	private static final Logger log = LogManager.getLogger(WherePart.class);
+	
+	private final Set<Operator> ALLOWED_LIST_OPERATORS = new HashSet<Operator>() {
+		private static final long serialVersionUID = 2809868650704689743L;
+		{
+			add(Operator.IN_SET);
+			add(Operator.NOT_IN_SET);
+		}
+	};
 	
 	protected StringBuilder sb = new StringBuilder();
 	protected List<Object> params = new ArrayList<>();
@@ -114,6 +125,12 @@ public class WherePart {
 				case NOT_NULL:
 					sb.append(notNull(tableAlias, crit));
 					break;
+				case IN_SET:
+					sb.append(inSet(tableAlias, crit));
+					break;
+				case NOT_IN_SET:
+					sb.append(notInSet(tableAlias, crit));
+					break;
 				default:
 					throw new Exception("unsupported OperatorId " + crit.getOperator() + "! Please extend this class: " + this.getClass());
 				}
@@ -126,30 +143,35 @@ public class WherePart {
 		}
 	}
 	
-	protected String contains(String tableAlias, Criteria criteria) {
+	protected String contains(String tableAlias, Criteria criteria) throws Exception {
+		validateCriteria(criteria);
 		final Object param = criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue();
 		params.add("%" + param + "%");
 		return tableAlias + criteria.getFieldName() + " LIKE ?";
 	}
 	
-	protected String icontains(String tableAlias, Criteria criteria) {
+	protected String icontains(String tableAlias, Criteria criteria) throws Exception {
+		validateCriteria(criteria);
 		final Object param = criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue();
 		params.add("%" + param + "%");
 		return "LOWER(" + tableAlias + criteria.getFieldName() + ") LIKE LOWER(?)";
 	}
 	
-	protected String notContains(String tableAlias, Criteria criteria) {
+	protected String notContains(String tableAlias, Criteria criteria) throws Exception {
+		validateCriteria(criteria);
 		final Object param = criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue();
 		params.add("%" + param + "%");
 		return tableAlias + criteria.getFieldName() + " NOT LIKE ?";
 	}
 	
-	protected String equals(String tableAlias, Criteria criteria) {
+	protected String equals(String tableAlias, Criteria criteria) throws Exception {
+		validateCriteria(criteria);
 		params.add(criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue());
 		return tableAlias + criteria.getFieldName() + " = ?";
 	}
 	
-	protected String iequals(String tableAlias, Criteria criteria) {
+	protected String iequals(String tableAlias, Criteria criteria) throws Exception {
+		validateCriteria(criteria);
 		if (criteria.getStringValue() != null) {
 			params.add(criteria.getStringValue());
 			return "LOWER(" + tableAlias + criteria.getFieldName() + ") LIKE LOWER(?)";
@@ -160,39 +182,46 @@ public class WherePart {
 		}
 	}
 	
-	protected String greaterOrEqual(String tableAlias, Criteria criteria) {
+	protected String greaterOrEqual(String tableAlias, Criteria criteria) throws Exception {
+		validateCriteria(criteria);
 		params.add(criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue());
 		return tableAlias + criteria.getFieldName() + " >= ?";
 	}
 	
-	protected String greaterThan(String tableAlias, Criteria criteria) {
+	protected String greaterThan(String tableAlias, Criteria criteria) throws Exception {
+		validateCriteria(criteria);
 		params.add(criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue());
 		return tableAlias + criteria.getFieldName() + " > ?";
 	}
 	
-	protected String lessOrEqual(String tableAlias, Criteria criteria) {
+	protected String lessOrEqual(String tableAlias, Criteria criteria) throws Exception {
+		validateCriteria(criteria);
 		params.add(criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue());
 		return tableAlias + criteria.getFieldName() + " <= ?";
 	}
 	
-	protected String lessThan(String tableAlias, Criteria criteria) {
+	protected String lessThan(String tableAlias, Criteria criteria) throws Exception {
+		validateCriteria(criteria);
 		params.add(criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue());
 		return tableAlias + criteria.getFieldName() + " < ?";
 	}
 	
-	protected String startsWith(String tableAlias, Criteria criteria) {
+	protected String startsWith(String tableAlias, Criteria criteria) throws Exception {
+		validateCriteria(criteria);
 		final Object param = criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue();
 		params.add(param + "%");
 		return tableAlias + criteria.getFieldName() + " LIKE ?";
 	}
 	
-	protected String istartsWith(String tableAlias, Criteria criteria) {
+	protected String istartsWith(String tableAlias, Criteria criteria) throws Exception {
+		validateCriteria(criteria);
 		final Object param = criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue();
 		params.add(param + "%");
 		return "LOWER(" + tableAlias + criteria.getFieldName() + ") LIKE LOWER(?)";
 	}
 	
-	protected String inotStartsWith(String tableAlias, Criteria criteria) {
+	protected String inotStartsWith(String tableAlias, Criteria criteria) throws Exception {
+		validateCriteria(criteria);
 		final Object param = criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue();
 		params.add(param + "%");
 		return "LOWER(" + tableAlias + criteria.getFieldName() + ") NOT LIKE LOWER(?)";
@@ -204,28 +233,59 @@ public class WherePart {
 		return tableAlias + criteria.getFieldName() + " LIKE ?";
 	}
 	
-	protected String iendsWith(String tableAlias, Criteria criteria) {
+	protected String iendsWith(String tableAlias, Criteria criteria) throws Exception {
+		validateCriteria(criteria);
 		final Object param = criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue();
 		params.add("%" + param);
 		return "LOWER(" + tableAlias + criteria.getFieldName() + ") LIKE LOWER(?)";
 	}
 	
-	protected String inotEndsWith(String tableAlias, Criteria criteria) {
+	protected String inotEndsWith(String tableAlias, Criteria criteria) throws Exception {
+		validateCriteria(criteria);
 		final Object param = criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue();
 		params.add("%" + param);
 		return "LOWER(" + tableAlias + criteria.getFieldName() + ") NOT LIKE LOWER(?)";
 	}
 	
-	protected String isBlank(String tableAlias, Criteria criteria) {
+	protected String isBlank(String tableAlias, Criteria criteria) throws Exception {
+		validateCriteria(criteria);
 		return "(" + tableAlias + criteria.getFieldName() + " = '' OR " + tableAlias + criteria.getFieldName() + " IS NULL)";
 	}
 	
-	protected String notBlank(String tableAlias, Criteria criteria) {
+	protected String notBlank(String tableAlias, Criteria criteria) throws Exception {
+		validateCriteria(criteria);
 		return "(" + tableAlias + criteria.getFieldName() + " != '' AND " + tableAlias + criteria.getFieldName() + " IS NOT NULL)";
 	}
 	
-	protected String notNull(String tableAlias, Criteria criteria) {
+	protected String notNull(String tableAlias, Criteria criteria) throws Exception {
+		validateCriteria(criteria);
 		return tableAlias + criteria.getFieldName() + " IS NOT NULL";
+	}
+	
+	protected String inSet(String tableAlias, Criteria criteria) throws Exception {
+		validateCriteria(criteria);
+		final Class<?> type = determineListType(criteria.getListValues());
+		final String csv;
+		if (Number.class.isAssignableFrom(type)) {
+			csv = criteria.getListValues().stream().map(val -> String.valueOf(val)).collect(Collectors.joining(","));
+		}
+		else {
+			csv = criteria.getListValues().stream().map(val -> "'" + String.valueOf(val) + "'").collect(Collectors.joining(","));
+		}
+		return tableAlias + criteria.getFieldName() + " IN (" + csv + ")";
+	}
+	
+	protected String notInSet(String tableAlias, Criteria criteria) throws Exception {
+		validateCriteria(criteria);
+		final Class<?> type = determineListType(criteria.getListValues());
+		final String csv;
+		if (Number.class.isAssignableFrom(type)) {
+			csv = criteria.getListValues().stream().map(val -> String.valueOf(val)).collect(Collectors.joining(","));
+		}
+		else {
+			csv = criteria.getListValues().stream().map(val -> "'" + String.valueOf(val) + "'").collect(Collectors.joining(","));
+		}
+		return tableAlias + criteria.getFieldName() + " NOT IN (" + csv + ")";
 	}
 	
 	public boolean isEmpty() {
@@ -239,6 +299,34 @@ public class WherePart {
 	
 	public List<Object> getValues() {
 		return params;
+	}
+	
+	/**
+	 * checks if the combination of Operator and value type is correct 
+	 * @param criteria
+	 * @throws Exception
+	 */
+	private void validateCriteria(Criteria criteria) throws Exception {
+		// check if a list value is set, but a unary operator is used
+		if (criteria.getListValues() != null && !criteria.getListValues().isEmpty() && !ALLOWED_LIST_OPERATORS.contains(criteria.getOperator())) {
+			final String msg = "the operator '" + criteria.getOperator() + "' does not support list values";
+			log.error(msg);
+			throw new Exception(msg);
+		}
+		// check if a list operator is used, but no list value is set
+		if (criteria.getListValues() == null || criteria.getListValues().isEmpty() && ALLOWED_LIST_OPERATORS.contains(criteria.getOperator())) {
+			final String msg = "the operator '" + criteria.getOperator() + "' supports list values only. Please provide them";
+			log.error(msg);
+			throw new Exception(msg);
+		}
+	}
+	
+	private Class determineListType(List<?> list) {
+		if (list != null && list.size() > 0) {
+			final Object o = list.get(0);
+			return o.getClass();
+		}
+		return null;
 	}
 }
 
