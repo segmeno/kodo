@@ -308,13 +308,13 @@ public class WherePart {
 	 */
 	private void validateCriteria(Criteria criteria) throws Exception {
 		// check if a list value is set, but a unary operator is used
-		if (criteria.getListValues() != null && !criteria.getListValues().isEmpty() && !ALLOWED_LIST_OPERATORS.contains(criteria.getOperator())) {
+		if ((criteria.getListValues() != null && !criteria.getListValues().isEmpty()) && !ALLOWED_LIST_OPERATORS.contains(criteria.getOperator())) {
 			final String msg = "the operator '" + criteria.getOperator() + "' does not support list values";
 			log.error(msg);
 			throw new Exception(msg);
 		}
 		// check if a list operator is used, but no list value is set
-		if (criteria.getListValues() == null || criteria.getListValues().isEmpty() && ALLOWED_LIST_OPERATORS.contains(criteria.getOperator())) {
+		if ((criteria.getListValues() == null || criteria.getListValues().isEmpty()) && ALLOWED_LIST_OPERATORS.contains(criteria.getOperator())) {
 			final String msg = "the operator '" + criteria.getOperator() + "' supports list values only. Please provide them";
 			log.error(msg);
 			throw new Exception(msg);
