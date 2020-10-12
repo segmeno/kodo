@@ -9,6 +9,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.log4j.LogManager;
@@ -19,7 +20,6 @@ import org.junit.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowCallbackHandler;
 
-import com.segmeno.kodo.annotation.CustomSql;
 import com.segmeno.kodo.entity.CustomElement;
 import com.segmeno.kodo.entity.TestAddress;
 import com.segmeno.kodo.entity.TestRole;
@@ -28,6 +28,8 @@ import com.segmeno.kodo.entity.TestUser;
 import com.segmeno.kodo.transport.Criteria;
 import com.segmeno.kodo.transport.CriteriaGroup;
 import com.segmeno.kodo.transport.Operator;
+import com.segmeno.kodo.transport.Sort;
+import com.segmeno.kodo.transport.Sort.SortDirection;
 
 public class DataAccessManagerTest {
 
@@ -95,6 +97,15 @@ public class DataAccessManagerTest {
 	}
 	
 	@Test
+	public void sortTest() throws Exception {
+		List<TestUser> users = manager.getElems(null, TestUser.class, new Sort("tbUser.Name", SortDirection.ASC), -1);
+		assertTrue(users.get(0).name.equalsIgnoreCase("Tim"));
+		
+		users = manager.getElems(null, TestUser.class, new Sort("tbUser.Name", SortDirection.DESC), -1);
+		assertTrue(users.get(0).name.equalsIgnoreCase("Tom"));
+	}
+	
+	@Test
 	public void updateElemTest() throws Exception {
 		
 		TestUser u = new TestUser();
@@ -104,6 +115,13 @@ public class DataAccessManagerTest {
 		u = manager.addElem(u);
 		manager.updateElem(u);
 		manager.deleteElems(new Criteria("name", Operator.EQUALS, "Bill"), TestUser.class);
+	}
+	
+	@Test
+	public void getRecordsTest() throws Exception {
+		final List<Map<String,Object>> res = manager.getRecords("tbUser", null, 10, 1, new Sort("Name", SortDirection.ASC));
+		assertTrue(res.size() == 2);
+		assertTrue((int)res.get(0).get("ID") == 2);
 	}
 
 	@Test
@@ -129,7 +147,10 @@ public class DataAccessManagerTest {
 	
 	@Test
 	public void deleteElemsTest() throws Exception {
-		manager.deleteElems(new CriteriaGroup(Operator.AND, new Criteria("Name", Operator.EQUALS, "Tom")), TestUser.class);
+		final CriteriaGroup crits = new CriteriaGroup(Operator.AND, new Criteria("Name", Operator.EQUALS, "Tom"));
+		final TestUser user = (TestUser)manager.getElems(crits, TestUser.class).get(0);
+		
+		manager.deleteElems(crits, TestUser.class);
 		
 		assertTrue(manager.getElemCount(new Criteria("Name", Operator.EQUALS, "Tom"), TestUser.class) == 0);
 		
@@ -140,6 +161,8 @@ public class DataAccessManagerTest {
 							.add(new Criteria("Street", Operator.EQUALS, "Testplace"));
 		
 		assertTrue(manager.getElemCount(cg, TestAddress.class) == 0);
+		
+		manager.addElem(user);
 	}
 	
 	@Test

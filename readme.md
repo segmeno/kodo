@@ -53,8 +53,29 @@ public class TestUser extends DatabaseEntity {
 if the database entity is not representing a table or if it is required to inject own SQL, the @CustomSql annotation can be used. This can be annotated on class level.
 If used, the getTableName() method just needs to return null. Child entities which are of type List<? extends DatabaseEntity> do not need any @MappingRelation annotation. Instead, the custom sql query needs to be built in a way that all child entities are queried correctly.
 
-To see a working example, check the com.segmeno.kodo.entity.CustomElement class from the test package.
+```
+@CustomSql(selectQuery="SELECT u.id AS CustomElementID, u.Name AS customName, 3 AS customAmount, "
+						+ "a.id AS \"customaddress.ID\", a.userId AS \"customaddress.UserID\", "
+						+ "a.street AS \"customaddress.street\", a.postalCode AS \"customaddress.postalCode\" "
+						+ "FROM tbUser u LEFT JOIN tbAddress a ON a.UserID = u.ID")
+public class CustomElement extends DatabaseEntity {
+	
+	@PrimaryKey
+	public Integer customElementId;
+	
+	public String customName;
+	
+	public List<TestAddress> customaddress = new ArrayList<>();
+	
+	public Integer customAmount;
+	
+	@Override
+	public String getTableName() {
+		return null;
+	}
 
+}
+```
 
 ## Setup of the DataAccessManager Class
 

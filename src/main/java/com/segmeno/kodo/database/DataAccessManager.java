@@ -3,9 +3,12 @@ package com.segmeno.kodo.database;
 import java.lang.reflect.Field;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
+import java.sql.Connection;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -14,6 +17,8 @@ import javax.sql.DataSource;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.dao.DataAccessException;
+import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.core.simple.SimpleJdbcInsert;
@@ -25,6 +30,8 @@ import com.segmeno.kodo.annotation.MappingRelation;
 import com.segmeno.kodo.transport.Criteria;
 import com.segmeno.kodo.transport.CriteriaGroup;
 import com.segmeno.kodo.transport.Operator;
+import com.segmeno.kodo.transport.Sort;
+import com.segmeno.kodo.transport.Sort.SortDirection;
 
 public class DataAccessManager {
 
@@ -35,25 +42,30 @@ public class DataAccessManager {
 	protected JdbcTemplate jdbcTemplate;
 	protected NamedParameterJdbcTemplate namedParameterJdbcTemplate;
 	
+	// H2, MySQL, Microsoft SQL Server, Oracle, PostgreSQL, Apache Derby, HSQL Database Engine
+	private final String DB_PRODUCT;
+	
 	private enum MappingTableBehaviour {
 		IGNORE,
 		REGARD
 	}
-	
+		
 	public JdbcTemplate getJdbcTemplate() {
 		return jdbcTemplate;
 	}
 	
-	public DataAccessManager(JdbcTemplate jdbcTemplate) {
+	public DataAccessManager(JdbcTemplate jdbcTemplate) throws SQLException {
 		this.jdbcTemplate = jdbcTemplate;
 		this.dataSource = jdbcTemplate.getDataSource();
 		this.namedParameterJdbcTemplate = new NamedParameterJdbcTemplate(dataSource);
+		this.DB_PRODUCT = getProduct();
 	}
 	
-	public DataAccessManager(DataSource dataSource) {
+	public DataAccessManager(DataSource dataSource) throws SQLException {
 		this.dataSource = dataSource;
 		this.jdbcTemplate = new JdbcTemplate(dataSource);
 		this.namedParameterJdbcTemplate = new NamedParameterJdbcTemplate(dataSource);
+		this.DB_PRODUCT = getProduct();
 	}
 	
 	/**
@@ -85,7 +97,7 @@ public class DataAccessManager {
 	 * @throws Exception
 	 */
 	public <T> List<T> getElems(CriteriaGroup advancedCriteria, Class<? extends DatabaseEntity> entityType) throws Exception {
-		return getElems(advancedCriteria, entityType, -1);
+		return getElems(advancedCriteria, entityType, null, -1);
 	}
 	
 	/**
@@ -96,12 +108,12 @@ public class DataAccessManager {
 	 * @return
 	 * @throws Exception
 	 */
-	public <T> List<T> getElems(CriteriaGroup advancedCriteria, Class<? extends DatabaseEntity> entityType, int fetchDepth) throws Exception {
+	public <T> List<T> getElems(CriteriaGroup advancedCriteria, Class<? extends DatabaseEntity> entityType, Sort sort, int fetchDepth) throws Exception {
 
 		try {
 			final List<Object> params = new ArrayList<Object>();
 			final DatabaseEntity mainEntity = entityType.getConstructor().newInstance();
-			final String query = buildQuery(mainEntity, advancedCriteria, params, fetchDepth);
+			final String query = buildQuery(mainEntity, advancedCriteria, sort, params, fetchDepth);
 			
 			log.debug("Query: " + sqlPrettyPrint(query) + "\t" + params);
 			final List<Map<String,Object>> rows = jdbcTemplate.queryForList(query, params.toArray());
@@ -113,8 +125,32 @@ public class DataAccessManager {
 		}
     }
 	
+	public List<Map<String,Object>> getRecords(String tableName, int pageSize, int currentPage) throws Exception {
+		return getRecords(tableName, (Criteria)null, pageSize, currentPage);
+	}
+	
+	public List<Map<String,Object>> getRecords(String tableName, Criteria criteria, int pageSize, int currentPage) throws Exception {
+		return getRecords(tableName, new CriteriaGroup(Operator.AND, criteria), pageSize, currentPage, null);
+	}
+	
+	public List<Map<String,Object>> getRecords(String tableName, CriteriaGroup criteriaGroup, int pageSize, int currentPage, Sort sort) throws Exception {
+
+		if (sort == null) {
+			sort = new Sort();
+		}
+		final WherePart where = new WherePart(tableName, criteriaGroup);
+		String stmt = "SELECT * FROM " + tableName + " WHERE " + where.toString() + sort.toString();
+		String count = "SELECT COUNT(*) FROM (" + stmt + ")";
+		
+		final Integer totalRows = jdbcTemplate.queryForObject(count, Integer.class);
+		stmt = addPaging(stmt, currentPage, pageSize, totalRows);
+		log.debug("Query: " + sqlPrettyPrint(stmt) + "\t" + where.getValues().toArray());
+
+		return jdbcTemplate.queryForList(stmt, where.getValues().toArray());
+	}
+	
 	private <T> List<T> rowsToObjects(DatabaseEntity baseEntity, List<Map<String, Object>> rows) throws Exception {
-		final Map<String,T> resultMap = new HashMap<String,T>();
+		final Map<String,T> resultMap = new LinkedHashMap<String,T>();
 		
 		final Map<String,Object> alreadyFilledObjects = new HashMap<String, Object>();
 		String pk;
@@ -243,8 +279,7 @@ public class DataAccessManager {
 			final StringBuilder from = new StringBuilder();
 			final StringBuilder join = new StringBuilder();
 			final StringBuilder where = new StringBuilder();
-			final StringBuilder orderBy = new StringBuilder();
-			buildQueryRecursively(mainEntity, criteria, select, from, join, where, orderBy, params, 0);
+			buildQueryRecursively(mainEntity, criteria, select, from, join, where, new Sort(), params, 0);
 			
 			final String sql = "SELECT COUNT (DISTINCT " + mainEntity.getTableName() + "." + mainEntity.getPrimaryKeyColumn() + ")" + from.toString() + join.toString() + where.toString();
 			
@@ -488,7 +523,7 @@ public class DataAccessManager {
 	 * @throws Exception
 	 */
     protected String buildQuery(DatabaseEntity entity, CriteriaGroup filter, List<Object> params) throws Exception {
-    	return buildQuery(entity, filter, params, -1);
+    	return buildQuery(entity, filter, null, params, -1);
     }
 
 	/**
@@ -500,21 +535,20 @@ public class DataAccessManager {
 	 * @return
 	 * @throws Exception
 	 */
-	protected String buildQuery(DatabaseEntity entity, CriteriaGroup filter, List<Object> params, int fetchDepth) throws Exception {
+	protected String buildQuery(DatabaseEntity entity, CriteriaGroup filter, Sort sort, List<Object> params, int fetchDepth) throws Exception {
 		final StringBuilder select = new StringBuilder();
 		final StringBuilder from = new StringBuilder();
 		final StringBuilder join = new StringBuilder();
 		final StringBuilder where = new StringBuilder();
-		final StringBuilder orderBy = new StringBuilder();
-		buildQueryRecursively(entity, "/", filter, select, from, join, where, orderBy, params, 0, fetchDepth);
-		return select.toString() + from.toString() + join.toString() + where.toString() + orderBy.toString();
+		buildQueryRecursively(entity, "/", filter, select, from, join, where, sort, params, 0, fetchDepth);
+		return select.toString() + from.toString() + join.toString() + where.toString() + (sort != null ? sort.toString() : "");
 	}
 	
-	private void buildQueryRecursively(DatabaseEntity entity, CriteriaGroup filter, StringBuilder select, StringBuilder from, StringBuilder join, StringBuilder where, StringBuilder orderBy, List<Object> params, int fetchDepth) throws Exception {
+	private void buildQueryRecursively(DatabaseEntity entity, CriteriaGroup filter, StringBuilder select, StringBuilder from, StringBuilder join, StringBuilder where, Sort orderBy, List<Object> params, int fetchDepth) throws Exception {
 		buildQueryRecursively(entity, "/", filter, select, from, join, where, orderBy, params, 0, fetchDepth);
 	}
 	
-	private void buildQueryRecursively(DatabaseEntity entity, String path, CriteriaGroup filter, StringBuilder select, StringBuilder from, StringBuilder join, StringBuilder where, StringBuilder orderBy, List<Object> params, int currentDepth, int fetchDepth) throws Exception {
+	private void buildQueryRecursively(DatabaseEntity entity, String path, CriteriaGroup filter, StringBuilder select, StringBuilder from, StringBuilder join, StringBuilder where, Sort orderBy, List<Object> params, int currentDepth, int fetchDepth) throws Exception {
 		
 		currentDepth++;
 		
@@ -539,8 +573,11 @@ public class DataAccessManager {
 				params.addAll(wp.getValues());
 				where.append(" WHERE " + wp.toString());
 			}
-			if (orderBy.length() == 0) {
-				orderBy.append(" ORDER BY ").append(entity.getTableName()).append(".").append(entity.getPrimaryKeyColumn());
+			if (orderBy == null) {
+				orderBy = new Sort();
+			}
+			if (orderBy.getSortFields().isEmpty()) {
+				orderBy.addSortField(entity.getTableName() + "." + entity.getPrimaryKeyColumn(), SortDirection.DESC);
 			}
 		}
 		
@@ -585,7 +622,7 @@ public class DataAccessManager {
     			
     			// this is an m:n mapping
     			if (!relation.mappingTableName().isEmpty()) {
-    				join.append(" LEFT JOIN " + relation.mappingTableName() + " ON " + relation.mappingTableName() + "." + relation.masterColumnName() + " = " + entity.getTableName() + "." + entity.getPrimaryKeyColumn());
+    				join.append(" LEFT JOIN " + relation.mappingTableName() + " ON " + relation.mappingTableName() + "." + relation.masterColumnName() + " = " + entityTableAlias + "." + entity.getPrimaryKeyColumn());
     				join.append(" LEFT JOIN " + childEntity.getTableName() + " " + childAlias + " ON " + relation.mappingTableName() + "." + relation.joinedColumnName() + " = " + childAlias + "." + childEntity.getPrimaryKeyColumn());
     			}
     			else {
@@ -624,6 +661,9 @@ public class DataAccessManager {
      * @return
      */
     public static Object convertTo(Class<?> type, Object obj) {
+    	if (obj == null) {
+    		return obj;
+    	}
     	if (Number.class.isAssignableFrom(type) && obj instanceof Number) {
     		if (Long.class.isAssignableFrom(type)) {
     			return ((Number)obj).longValue();
@@ -649,6 +689,29 @@ public class DataAccessManager {
 			return null;
 		}
 		return sql.replaceAll("SELECT", "\n\tSELECT").replaceAll("FROM", "\n\tFROM").replaceAll("LEFT JOIN", "\n\tLEFT JOIN").replaceAll("WHERE", "\n\tWHERE");
+	}
+	
+	
+	private String addPaging(String query, int currentPage, int pageSize, int totalRows) throws Exception {
+		
+		int startRow = (currentPage - 1) * pageSize;
+		
+		if (DB_PRODUCT.equals("Microsoft SQL Server")) {
+			return query + " OFFSET " + startRow + " ROWS FETCH NEXT " + pageSize + " ROWS ONLY";
+		}
+		else {
+			int endRow = Math.min(startRow + pageSize, totalRows);
+			return query + " LIMIT " + (endRow - startRow) + " OFFSET " + startRow;	
+		}
+	}
+	
+	private String getProduct() {
+	    return this.jdbcTemplate.execute(new ConnectionCallback<String>() {
+	        @Override
+	        public String doInConnection(Connection connection) throws SQLException, DataAccessException {
+	            return connection.getMetaData().getDatabaseProductName();
+	        }
+	    });
 	}
     
 }

@@ -53,11 +53,19 @@ public class WherePart {
 		
 		tableAlias = tableAlias != null ? tableAlias + "." : "";
 		
+		if (adCrit == null) {
+			adCrit = new CriteriaGroup();
+		}
+		
 		final List<Criteria> crits = adCrit.getCriterias();
-		if (adCrit != null && crits.size() > 0) {
+		if (crits.size() > 0) {
 			sb.append("(");
 			
 			for (Criteria crit : crits) {
+				if (crit == null) {
+					sb.setLength(sb.length()-1);	// we remove the parenthesis
+					continue;
+				}
 				// first check if the column name is really existing
 				if (!this.columnNames.isEmpty()) {
 					if (crit.getFieldName() != null && !this.columnNames.contains(crit.getFieldName().toUpperCase())) {
@@ -138,8 +146,10 @@ public class WherePart {
 				sb.append(" ").append(adCrit.getOperator().getValue()).append(" ");
 			}
 			
-			sb.setLength(sb.length() - (adCrit.getOperator().getValue().length() + 2));	// remove last ' OperatorId '
-			sb.append(")");
+			if (sb.length() > 0) {
+				sb.setLength(sb.length() - (adCrit.getOperator().getValue().length() + 2));	// remove last ' OperatorId '
+				sb.append(")");
+			}
 		}
 	}
 	
@@ -294,6 +304,9 @@ public class WherePart {
 
 	@Override
 	public String toString() {
+		if (sb.length() == 0) {
+			sb.append("(1 = 1)");
+		}
 		return sb.toString();
 	}
 	
