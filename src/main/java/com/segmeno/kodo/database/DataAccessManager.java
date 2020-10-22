@@ -13,8 +13,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import javax.sql.DataSource;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.dao.DataAccessException;
@@ -38,7 +36,7 @@ public class DataAccessManager {
 	private static final Logger log = LogManager.getLogger(DataAccessManager.class);
 	
 	protected String tableColDelimiter = ".";
-	protected DataSource dataSource;
+//	protected DataSource dataSource;
 	protected JdbcTemplate jdbcTemplate;
 	protected NamedParameterJdbcTemplate namedParameterJdbcTemplate;
 	
@@ -56,17 +54,17 @@ public class DataAccessManager {
 	
 	public DataAccessManager(JdbcTemplate jdbcTemplate) throws SQLException {
 		this.jdbcTemplate = jdbcTemplate;
-		this.dataSource = jdbcTemplate.getDataSource();
-		this.namedParameterJdbcTemplate = new NamedParameterJdbcTemplate(dataSource);
+//		this.dataSource = jdbcTemplate.getDataSource();
+		this.namedParameterJdbcTemplate = new NamedParameterJdbcTemplate(jdbcTemplate);
 		this.DB_PRODUCT = getProduct();
 	}
 	
-	public DataAccessManager(DataSource dataSource) throws SQLException {
-		this.dataSource = dataSource;
-		this.jdbcTemplate = new JdbcTemplate(dataSource);
-		this.namedParameterJdbcTemplate = new NamedParameterJdbcTemplate(dataSource);
-		this.DB_PRODUCT = getProduct();
-	}
+//	public DataAccessManager(DataSource dataSource) throws SQLException {
+//		this.dataSource = dataSource;
+//		this.jdbcTemplate = new JdbcTemplate(dataSource);
+//		this.namedParameterJdbcTemplate = new NamedParameterJdbcTemplate(dataSource);
+//		this.DB_PRODUCT = getProduct();
+//	}
 	
 	/**
 	 * returns all entities of entityType by performing a simple select without any filters
@@ -104,6 +102,7 @@ public class DataAccessManager {
 	 * returns a list of the queried entity type, considering a criteria for filtering
 	 * @param advancedCriteria the advancedCriteria for filtering the main entity
 	 * @param entityType the main entity type to query
+	 * @param sort sort options
 	 * @param fetchDepth - how deep to dig down in the hierarchy level. Pass in -1 to fetch all (sub)elements
 	 * @return
 	 * @throws Exception
@@ -111,7 +110,7 @@ public class DataAccessManager {
 	public <T> List<T> getElems(CriteriaGroup advancedCriteria, Class<? extends DatabaseEntity> entityType, Sort sort, int fetchDepth) throws Exception {
 
 		try {
-			final List<Object> params = new ArrayList<Object>();
+			final ArrayList<Object> params = new ArrayList<Object>();
 			final DatabaseEntity mainEntity = entityType.getConstructor().newInstance();
 			final String query = buildQuery(mainEntity, advancedCriteria, sort, params, fetchDepth);
 			
@@ -136,7 +135,7 @@ public class DataAccessManager {
 	public List<Map<String,Object>> getRecords(String tableName, CriteriaGroup criteriaGroup, int pageSize, int currentPage, Sort sort) throws Exception {
 
 		if (sort == null) {
-			sort = new Sort();
+			throw new Exception("a sort is required in order to use paging!");
 		}
 		final WherePart where = new WherePart(tableName, criteriaGroup);
 		String stmt = "SELECT * FROM " + tableName + " WHERE " + where.toString() + sort.toString();
@@ -274,7 +273,7 @@ public class DataAccessManager {
     	try {
 			final DatabaseEntity mainEntity = entityType.getConstructor().newInstance();
 
-			final List<Object> params = new ArrayList<Object>();
+			final ArrayList<Object> params = new ArrayList<Object>();
 			final StringBuilder select = new StringBuilder();
 			final StringBuilder from = new StringBuilder();
 			final StringBuilder join = new StringBuilder();
@@ -323,7 +322,7 @@ public class DataAccessManager {
 				}
 			}
     	}
-    	final SimpleJdbcInsert insert = new SimpleJdbcInsert(dataSource)
+    	final SimpleJdbcInsert insert = new SimpleJdbcInsert(jdbcTemplate)
 	            .withTableName(baseEntity.getTableName())
 	            .usingGeneratedKeyColumns(baseEntity.getPrimaryKeyColumn())
 	            .usingColumns(baseEntity.getColumnNames(false).toArray(new String[0]));
@@ -391,7 +390,7 @@ public class DataAccessManager {
     
     /**
      * deletes all elements which expect the specified type and match the provided filter
-     * @param filterByType
+     * @param criteria
      * @param entityType
      * @throws Exception
      */
@@ -402,7 +401,8 @@ public class DataAccessManager {
 	
     /**
      * deletes the main entity and all of its children by their primary key (this is the only field which needs to be provided)
-     * @param obj
+     * @param advancedCriteria
+     * @param entityType
      * @throws Exception
      */
 	@Transactional(propagation = Propagation.REQUIRED)
@@ -488,7 +488,7 @@ public class DataAccessManager {
      * returns a map which holds lists of all elements of the main entity. So if a user has roles and accounts, the result would
      * be a map with all role elements and a list with all account elements, wrapped inside a list
      * @param mainEntity
-     * @param ignoreNmMappings
+     * @param mappingTableBehaviour
      * @return
      * @throws Exception
      */
@@ -522,7 +522,7 @@ public class DataAccessManager {
 	 * @return
 	 * @throws Exception
 	 */
-    protected String buildQuery(DatabaseEntity entity, CriteriaGroup filter, List<Object> params) throws Exception {
+    public String buildQuery(DatabaseEntity entity, CriteriaGroup filter, ArrayList<Object> params) throws Exception {
     	return buildQuery(entity, filter, null, params, -1);
     }
 
@@ -535,7 +535,7 @@ public class DataAccessManager {
 	 * @return
 	 * @throws Exception
 	 */
-	protected String buildQuery(DatabaseEntity entity, CriteriaGroup filter, Sort sort, List<Object> params, int fetchDepth) throws Exception {
+    public String buildQuery(DatabaseEntity entity, CriteriaGroup filter, Sort sort, ArrayList<Object> params, int fetchDepth) throws Exception {
 		final StringBuilder select = new StringBuilder();
 		final StringBuilder from = new StringBuilder();
 		final StringBuilder join = new StringBuilder();
@@ -544,11 +544,11 @@ public class DataAccessManager {
 		return select.toString() + from.toString() + join.toString() + where.toString() + (sort != null ? sort.toString() : "");
 	}
 	
-	private void buildQueryRecursively(DatabaseEntity entity, CriteriaGroup filter, StringBuilder select, StringBuilder from, StringBuilder join, StringBuilder where, Sort orderBy, List<Object> params, int fetchDepth) throws Exception {
+	private void buildQueryRecursively(DatabaseEntity entity, CriteriaGroup filter, StringBuilder select, StringBuilder from, StringBuilder join, StringBuilder where, Sort orderBy, ArrayList<Object> params, int fetchDepth) throws Exception {
 		buildQueryRecursively(entity, "/", filter, select, from, join, where, orderBy, params, 0, fetchDepth);
 	}
 	
-	private void buildQueryRecursively(DatabaseEntity entity, String path, CriteriaGroup filter, StringBuilder select, StringBuilder from, StringBuilder join, StringBuilder where, Sort orderBy, List<Object> params, int currentDepth, int fetchDepth) throws Exception {
+	private void buildQueryRecursively(DatabaseEntity entity, String path, CriteriaGroup filter, StringBuilder select, StringBuilder from, StringBuilder join, StringBuilder where, Sort orderBy, ArrayList<Object> params, int currentDepth, int fetchDepth) throws Exception {
 		
 		currentDepth++;
 		
@@ -657,7 +657,7 @@ public class DataAccessManager {
     /**
      * checks if the type and object. Then converts into the correct type
      * @param type
-     * @param pk
+     * @param obj
      * @return
      */
     public static Object convertTo(Class<?> type, Object obj) {

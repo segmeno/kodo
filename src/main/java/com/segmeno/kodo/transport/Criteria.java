@@ -61,4 +61,10 @@ public class Criteria {
 		this.listValues = listValues;
 	}
 
+	@Override
+	public String toString() {
+		return "Criteria [fieldName=" + fieldName + ", operator=" + operator + ", stringValue=" + stringValue
+				+ ", numberValue=" + numberValue + ", listValues=" + listValues + "]";
+	}
+
 }

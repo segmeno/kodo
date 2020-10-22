@@ -24,17 +24,19 @@ public class Sort {
 	}
 	
 	public Sort(ArrayList<SortEntry> sortFields) {
+		this.sortFields = sortFields;
 		buildStmt();
 	}
 	
 	public Sort(SortEntry entry) {
+		sortFields.add(entry);
 		buildStmt();
 	}
 	
 	public Sort() {
 	}
 	
-	private void buildStmt() {
+	public void buildStmt() {
 		sortStmt.setLength(0);
 		sortStmt.append(" ORDER BY");
 		

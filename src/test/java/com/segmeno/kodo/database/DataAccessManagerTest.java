@@ -46,8 +46,9 @@ public class DataAccessManagerTest {
 		ds = new JdbcDataSource();
 		ds.setUrl("jdbc:h2:mem:testcase;MODE=MYSQL");
 		ds.setUser("sa");
+		JdbcTemplate templ = new JdbcTemplate(ds);
 
-		manager = new DataAccessManager(ds);
+		manager = new DataAccessManager(templ);
 
 		// prepare the test tables
 		con = ds.getConnection();
@@ -192,7 +193,7 @@ public class DataAccessManagerTest {
 	@Test
 	public void buildQueryTest() throws Exception {
 
-			final List<Object> params = new ArrayList<Object>();
+			final ArrayList<Object> params = new ArrayList<Object>();
 			
 			final CriteriaGroup filter = new CriteriaGroup(Operator.AND)
 					.add(new Criteria("Name", Operator.ENDS_WITH, "m"));
