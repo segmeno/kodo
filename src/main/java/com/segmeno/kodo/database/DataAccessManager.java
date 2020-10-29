@@ -36,7 +36,6 @@ public class DataAccessManager {
 	private static final Logger log = LogManager.getLogger(DataAccessManager.class);
 	
 	protected String tableColDelimiter = ".";
-//	protected DataSource dataSource;
 	protected JdbcTemplate jdbcTemplate;
 	protected NamedParameterJdbcTemplate namedParameterJdbcTemplate;
 	
@@ -54,17 +53,9 @@ public class DataAccessManager {
 	
 	public DataAccessManager(JdbcTemplate jdbcTemplate) throws SQLException {
 		this.jdbcTemplate = jdbcTemplate;
-//		this.dataSource = jdbcTemplate.getDataSource();
 		this.namedParameterJdbcTemplate = new NamedParameterJdbcTemplate(jdbcTemplate);
 		this.DB_PRODUCT = getProduct();
 	}
-	
-//	public DataAccessManager(DataSource dataSource) throws SQLException {
-//		this.dataSource = dataSource;
-//		this.jdbcTemplate = new JdbcTemplate(dataSource);
-//		this.namedParameterJdbcTemplate = new NamedParameterJdbcTemplate(dataSource);
-//		this.DB_PRODUCT = getProduct();
-//	}
 	
 	/**
 	 * returns all entities of entityType by performing a simple select without any filters
@@ -107,7 +98,7 @@ public class DataAccessManager {
 	 * @return
 	 * @throws Exception
 	 */
-	public <T> List<T> getElems(CriteriaGroup advancedCriteria, Class<? extends DatabaseEntity> entityType, Sort sort, int fetchDepth) throws Exception {
+	public <T> List<T> getElems(CriteriaGroup advancedCriteria, Class<? extends DatabaseEntity> entityType, Sort sort, Integer fetchDepth) throws Exception {
 
 		try {
 			final ArrayList<Object> params = new ArrayList<Object>();
@@ -186,17 +177,18 @@ public class DataAccessManager {
 				if (DatabaseEntity.class.isAssignableFrom(genericClass)) {
 					
 	    			final DatabaseEntity childEntity = (DatabaseEntity)genericClass.getConstructor().newInstance();
+	    			final String subAlias;
 	    			// this is allowed to happen if the database entity has a custom sql annotation
 	    			if (entity.getTableName() == null) {
 	    				if (entity.getClass().isAnnotationPresent(CustomSql.class)) {
-	    					alias = field.getName();
+	    					subAlias = field.getName();
 						}
 	    				else {
 	    					throw new Exception("no table name defined! Either change 'getTableName' method of " + entity.getClass().getName() + " to return a value or use the @CustomSql annotation");
 	    				}
 	    			}
 	    			else {
-	    				alias = entity.getTableName() + "_" + field.getName();
+	    				subAlias = entity.getTableName() + "_" + field.getName();
 	    			}
 	    			
 	    			Object childPk = getValueFromRow(alias, childEntity.getPrimaryKeyColumn(), row);
@@ -213,7 +205,7 @@ public class DataAccessManager {
 						
 						// keep track of the current level in the tree 
 						path += "/" + entity.getTableName();
-						rowToEntity(childEntity, alias, path, row, alreadyFilledObjects);
+						rowToEntity(childEntity, subAlias, path, row, alreadyFilledObjects);
 						path = path.substring(0, path.lastIndexOf("/"));
 					}
 				}
@@ -221,7 +213,6 @@ public class DataAccessManager {
 			else if (DatabaseEntity.class.isAssignableFrom(field.getType())) {
 				
 				final DatabaseEntity childEntity = (DatabaseEntity)field.getType().getConstructor().newInstance();	
-				alias = entity.getTableName() + "_" + field.getName();
 				Object childPk = getValueFromRow(alias, childEntity.getPrimaryKeyColumn(), row);
 				String childUniqueKey = alias + "#" + childPk;
 				
@@ -230,7 +221,7 @@ public class DataAccessManager {
 					
 					// keep track of the current level in the tree 
 					path += "/" + entity.getTableName();
-					rowToEntity(childEntity, alias, path, row, alreadyFilledObjects);
+					rowToEntity(childEntity, entity.getTableName() + "_" + field.getName(), path, row, alreadyFilledObjects);
 					path = path.substring(0, path.lastIndexOf("/"));
 				}
 			}
@@ -535,12 +526,12 @@ public class DataAccessManager {
 	 * @return
 	 * @throws Exception
 	 */
-    public String buildQuery(DatabaseEntity entity, CriteriaGroup filter, Sort sort, ArrayList<Object> params, int fetchDepth) throws Exception {
+    public String buildQuery(DatabaseEntity entity, CriteriaGroup filter, Sort sort, ArrayList<Object> params, Integer fetchDepth) throws Exception {
 		final StringBuilder select = new StringBuilder();
 		final StringBuilder from = new StringBuilder();
 		final StringBuilder join = new StringBuilder();
 		final StringBuilder where = new StringBuilder();
-		buildQueryRecursively(entity, "/", filter, select, from, join, where, sort, params, 0, fetchDepth);
+		buildQueryRecursively(entity, "/", filter, select, from, join, where, sort, params, 0, fetchDepth == null ? -1 : fetchDepth);
 		return select.toString() + from.toString() + join.toString() + where.toString() + (sort != null ? sort.toString() : "");
 	}
 	
