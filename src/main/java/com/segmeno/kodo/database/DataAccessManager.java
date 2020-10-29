@@ -23,6 +23,7 @@ import org.springframework.jdbc.core.simple.SimpleJdbcInsert;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.segmeno.kodo.annotation.Column;
 import com.segmeno.kodo.annotation.CustomSql;
 import com.segmeno.kodo.annotation.MappingRelation;
 import com.segmeno.kodo.transport.Criteria;
@@ -191,8 +192,8 @@ public class DataAccessManager {
 	    				subAlias = entity.getTableName() + "_" + field.getName();
 	    			}
 	    			
-	    			Object childPk = getValueFromRow(alias, childEntity.getPrimaryKeyColumn(), row);
-	    			String childUniqueKey = alias + "#" + childPk;
+	    			Object childPk = getValueFromRow(subAlias, childEntity.getPrimaryKeyColumn(), row);
+	    			String childUniqueKey = subAlias + "#" + childPk;
 						
 					if (childPk != null && !alreadyFilledObjects.containsKey(childUniqueKey) && !path.contains(childEntity.getTableName())) {
 						
@@ -226,9 +227,12 @@ public class DataAccessManager {
 				}
 			}
 			else {
+				final Column column = field.getAnnotation(Column.class);
+				final String colName = column != null ? column.columnName() : field.getName();
+				
+				final String entityField = alias != null ? alias + tableColDelimiter + colName : colName;
 				for (Map.Entry<String, Object> cell : row.entrySet()) {
 					final String fullName = cell.getKey();
-					final String entityField = alias != null ? alias + tableColDelimiter + field.getName() : field.getName();
 					
 					if (fullName.equalsIgnoreCase(entityField)) {
 						field.set(entity, convertTo(field.getType(), cell.getValue()));
