@@ -151,7 +151,7 @@ public class DataAccessManager {
 		
 		for (Map<String,Object> row : rows) {
 			
-			pk = String.valueOf(getValueFromRow(baseEntity.getTableName(), baseEntity.getPrimaryKeyColumn(), row));
+			pk = String.valueOf(getValueFromRow(baseEntity.getTableName(), baseEntity.getPrimaryKeyColumn(), row, false));
 			if (!resultMap.containsKey(pk)) {
 				baseEntity = baseEntity.getClass().getConstructor().newInstance();
 				alreadyFilledObjects.clear();
@@ -160,7 +160,7 @@ public class DataAccessManager {
 				baseEntity = (DatabaseEntity)resultMap.get(pk);
 			}
 			final String alias = baseEntity.getTableName() != null ? baseEntity.getTableName() : baseEntity.getClass().getSimpleName();
-			rowToEntity(baseEntity, baseEntity.getTableName(), "/", row, alreadyFilledObjects);
+			rowToEntity(baseEntity, baseEntity.getTableName(), "", row, alreadyFilledObjects);
 			resultMap.put(pk, (T)baseEntity);
 		}
 		return resultMap.values().stream().collect(Collectors.toList());
@@ -168,7 +168,7 @@ public class DataAccessManager {
 	
 	private void rowToEntity(DatabaseEntity entity, String alias, String path, Map<String,Object> row, Map<String,Object> alreadyFilledObjects) throws Exception {
 		// first thing to do: retrieve pk value and build unique key
-		final String pk = String.valueOf(getValueFromRow(alias, entity.getPrimaryKeyColumn(), row));
+		final String pk = String.valueOf(getValueFromRow(alias, entity.getPrimaryKeyColumn(), row, true));
 		final String uniqueKey = alias + "#" + pk;
 		
 		for (Field field : entity.fields) {
@@ -195,7 +195,7 @@ public class DataAccessManager {
 	    				subAlias = entity.getTableName() + SUB_FIELD_DELIMITER + field.getName();
 	    			}
 	    			
-	    			Object childPk = getValueFromRow(subAlias, childEntity.getPrimaryKeyColumn(), row);
+	    			Object childPk = getValueFromRow(subAlias, childEntity.getPrimaryKeyColumn(), row, true);
 	    			String childUniqueKey = subAlias + "#" + childPk;
 						
 					if (childPk != null && !alreadyFilledObjects.containsKey(childUniqueKey) && !path.contains(childEntity.getTableName())) {
@@ -217,7 +217,7 @@ public class DataAccessManager {
 			else if (DatabaseEntity.class.isAssignableFrom(field.getType())) {
 				
 				final DatabaseEntity childEntity = (DatabaseEntity)field.getType().getConstructor().newInstance();	
-				Object childPk = getValueFromRow(alias, childEntity.getPrimaryKeyColumn(), row);
+				Object childPk = getValueFromRow(alias, childEntity.getPrimaryKeyColumn(), row, true);
 				String childUniqueKey = alias + "#" + childPk;
 				
 				if (childPk != null && !alreadyFilledObjects.containsKey(childUniqueKey) && !path.contains(childEntity.getTableName())) {
@@ -230,10 +230,15 @@ public class DataAccessManager {
 				}
 			}
 			else {
-				final Column column = field.getAnnotation(Column.class);
-				final String colName = column != null ? column.columnName() : field.getName();
-				
-				final String entityField = alias != null ? alias + TABLE_COL_DELIMITER + colName : colName;
+				final String colName = field.getAnnotation(Column.class) != null ? field.getAnnotation(Column.class).columnName() : field.getName();
+				// this is a field of the main entity (on first level). Then we do not use aliases
+				final String entityField;
+				if (path.isEmpty() || alias == null) {
+					entityField = colName;
+				}
+				else {
+					entityField = alias + TABLE_COL_DELIMITER + colName;
+				}
 				for (Map.Entry<String, Object> cell : row.entrySet()) {
 					final String fullName = cell.getKey();
 					
@@ -247,8 +252,8 @@ public class DataAccessManager {
 		alreadyFilledObjects.put(uniqueKey, entity);
 	}
 	
-	private Object getValueFromRow(String alias, String fieldName, Map<String,Object> row) {
-		if (alias != null) {
+	private Object getValueFromRow(String alias, String fieldName, Map<String,Object> row, boolean useAlias) {
+		if (alias != null && useAlias) {
 			fieldName = alias + TABLE_COL_DELIMITER + fieldName;
 		}
 		for (Map.Entry<String, Object> cell : row.entrySet()) {
@@ -469,7 +474,7 @@ public class DataAccessManager {
 		return sb.toString();
 	}
     
-    protected String getColumnsCsvWithAlias(String tableAlias, List<String> cols, boolean useAlias) throws Exception {
+    protected String getColumnsCsv(String tableAlias, List<String> cols, boolean useAlias) throws Exception {
     	final StringBuilder sb = new StringBuilder();
     	for (String col : cols) {
     		validateColName(col);
@@ -570,7 +575,7 @@ public class DataAccessManager {
 		}
 		
 		if (select.length() == 0) {
-			select.append("SELECT " + getColumnsCsvWithAlias(entity.getTableName(), entity.getColumnNames(true), true));
+			select.append("SELECT " + getColumnsCsv(entity.getTableName(), entity.getColumnNames(true), false));
 			from.append(" FROM " + entity.getTableName());
 			if (filter != null && !filter.getCriterias().isEmpty()) {
 				final WherePart wp = new WherePart(entity.getTableName(), filter);
@@ -622,7 +627,7 @@ public class DataAccessManager {
 				}
     			String childAlias = entity.getTableName() + SUB_FIELD_DELIMITER + field.getName();
     			aliasField.set(childEntity, childAlias);
-    			select.append(", ").append(getColumnsCsvWithAlias(childAlias, childEntity.getColumnNames(true), true));
+    			select.append(", ").append(getColumnsCsv(childAlias, childEntity.getColumnNames(true), true));
     			
     			// this is an m:n mapping
     			if (!relation.mappingTableName().isEmpty()) {
