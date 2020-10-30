@@ -11,6 +11,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
@@ -36,7 +37,9 @@ public class DataAccessManager {
 
 	private static final Logger log = LogManager.getLogger(DataAccessManager.class);
 	
-	protected String tableColDelimiter = ".";
+	protected static final Pattern VALID_COLNAME_PATTERN = Pattern.compile("\\A[a-zA-Z_]{1}[0-9a-zA-Z_]*\\Z");
+	protected static final String SUB_FIELD_DELIMITER = "_";
+	protected static final String TABLE_COL_DELIMITER = ".";
 	protected JdbcTemplate jdbcTemplate;
 	protected NamedParameterJdbcTemplate namedParameterJdbcTemplate;
 	
@@ -189,7 +192,7 @@ public class DataAccessManager {
 	    				}
 	    			}
 	    			else {
-	    				subAlias = entity.getTableName() + "_" + field.getName();
+	    				subAlias = entity.getTableName() + SUB_FIELD_DELIMITER + field.getName();
 	    			}
 	    			
 	    			Object childPk = getValueFromRow(subAlias, childEntity.getPrimaryKeyColumn(), row);
@@ -222,7 +225,7 @@ public class DataAccessManager {
 					
 					// keep track of the current level in the tree 
 					path += "/" + entity.getTableName();
-					rowToEntity(childEntity, entity.getTableName() + "_" + field.getName(), path, row, alreadyFilledObjects);
+					rowToEntity(childEntity, entity.getTableName() + SUB_FIELD_DELIMITER + field.getName(), path, row, alreadyFilledObjects);
 					path = path.substring(0, path.lastIndexOf("/"));
 				}
 			}
@@ -230,7 +233,7 @@ public class DataAccessManager {
 				final Column column = field.getAnnotation(Column.class);
 				final String colName = column != null ? column.columnName() : field.getName();
 				
-				final String entityField = alias != null ? alias + tableColDelimiter + colName : colName;
+				final String entityField = alias != null ? alias + TABLE_COL_DELIMITER + colName : colName;
 				for (Map.Entry<String, Object> cell : row.entrySet()) {
 					final String fullName = cell.getKey();
 					
@@ -246,7 +249,7 @@ public class DataAccessManager {
 	
 	private Object getValueFromRow(String alias, String fieldName, Map<String,Object> row) {
 		if (alias != null) {
-			fieldName = alias + tableColDelimiter + fieldName;
+			fieldName = alias + TABLE_COL_DELIMITER + fieldName;
 		}
 		for (Map.Entry<String, Object> cell : row.entrySet()) {
 			if (cell.getKey().equalsIgnoreCase(fieldName)) {
@@ -466,11 +469,17 @@ public class DataAccessManager {
 		return sb.toString();
 	}
     
-    protected String getColumnsCsvWithAlias(String tableAlias, List<String> cols) {
+    protected String getColumnsCsvWithAlias(String tableAlias, List<String> cols, boolean useAlias) throws Exception {
     	final StringBuilder sb = new StringBuilder();
     	for (String col : cols) {
+    		validateColName(col);
     		final String s;
-			s = tableAlias + "." + col + " AS \"" + tableAlias + tableColDelimiter + col + "\"";
+    		if (useAlias) {
+    			s = tableAlias + "." + col + " AS \"" + tableAlias + TABLE_COL_DELIMITER + col + "\"";
+    		}
+    		else {
+    			s = tableAlias + "." + col;
+    		}
     		sb.append(s).append(", ");
     	}
     	if (sb.length()>2) {
@@ -479,7 +488,7 @@ public class DataAccessManager {
     	return sb.toString();
     }
     
-    /**
+	/**
      * returns a map which holds lists of all elements of the main entity. So if a user has roles and accounts, the result would
      * be a map with all role elements and a list with all account elements, wrapped inside a list
      * @param mainEntity
@@ -561,7 +570,7 @@ public class DataAccessManager {
 		}
 		
 		if (select.length() == 0) {
-			select.append("SELECT " + getColumnsCsvWithAlias(entity.getTableName(), entity.getColumnNames(true)));
+			select.append("SELECT " + getColumnsCsvWithAlias(entity.getTableName(), entity.getColumnNames(true), true));
 			from.append(" FROM " + entity.getTableName());
 			if (filter != null && !filter.getCriterias().isEmpty()) {
 				final WherePart wp = new WherePart(entity.getTableName(), filter);
@@ -611,9 +620,9 @@ public class DataAccessManager {
 				if (path.contains(childEntity.getTableName())) {
 					continue;
 				}
-    			String childAlias = entity.getTableName() + "_" + field.getName();
+    			String childAlias = entity.getTableName() + SUB_FIELD_DELIMITER + field.getName();
     			aliasField.set(childEntity, childAlias);
-    			select.append(", ").append(getColumnsCsvWithAlias(childAlias, childEntity.getColumnNames(true)));
+    			select.append(", ").append(getColumnsCsvWithAlias(childAlias, childEntity.getColumnNames(true), true));
     			
     			// this is an m:n mapping
     			if (!relation.mappingTableName().isEmpty()) {
@@ -686,6 +695,11 @@ public class DataAccessManager {
 		return sql.replaceAll("SELECT", "\n\tSELECT").replaceAll("FROM", "\n\tFROM").replaceAll("LEFT JOIN", "\n\tLEFT JOIN").replaceAll("WHERE", "\n\tWHERE");
 	}
 	
+	public static void validateColName(String colname) throws Exception {
+		if(!VALID_COLNAME_PATTERN.matcher(colname).matches()) {
+			throw new Exception("possible attempt of SQL Injection, invalid colname found: " + colname);
+		}
+	}
 	
 	private String addPaging(String query, int currentPage, int pageSize, int totalRows) throws Exception {
 		
@@ -708,5 +722,5 @@ public class DataAccessManager {
 	        }
 	    });
 	}
-    
+	
 }
