@@ -54,12 +54,14 @@ public abstract class DatabaseEntity {
 	public List<String> getColumnNames(boolean includePrimaryKeyColumn) throws Exception {
 		final List<String> cols = new ArrayList<>();
 		for (Field f : fields) {
-			if ((!includePrimaryKeyColumn && f.getAnnotation(PrimaryKey.class) != null) || 
-					Collection.class.isAssignableFrom(f.getType()) || f.getAnnotation(MappingRelation.class) != null) {
+			if ((!includePrimaryKeyColumn && f.getAnnotation(PrimaryKey.class) != null) || Collection.class.isAssignableFrom(f.getType())) {
 				continue;
 			}
 			if (f.getAnnotation(Column.class) != null && !f.getAnnotation(Column.class).columnName().isEmpty()) {
 				cols.add(f.getAnnotation(Column.class).columnName());
+			}
+			else if (f.getAnnotation(MappingRelation.class) != null && f.getAnnotation(MappingRelation.class).mappingTableName().isEmpty()) {
+				cols.add(f.getAnnotation(MappingRelation.class).masterColumnName());
 			}
 			else {
 				cols.add(f.getName());
@@ -82,13 +84,24 @@ public abstract class DatabaseEntity {
 			final String colName;
 			if (f.getAnnotation(Column.class) != null && !f.getAnnotation(Column.class).columnName().isEmpty()) {
 				colName = f.getAnnotation(Column.class).columnName().toLowerCase();
+				map.put(colName, f.get(this));
+			}
+			else if (f.getAnnotation(MappingRelation.class) != null && f.getAnnotation(MappingRelation.class).mappingTableName().isEmpty()) {
+				colName = f.getAnnotation(MappingRelation.class).masterColumnName().toLowerCase();
+				if (DatabaseEntity.class.isAssignableFrom(f.getType())) {
+					final DatabaseEntity elem = (DatabaseEntity)f.get(this);
+					map.put(colName, elem.getPrimaryKeyValue());
+				}
+				else {
+					map.put(colName, f.get(this));
+				}
 			}
 			else {
 				colName = f.getName().toLowerCase();
+				map.put(colName, f.get(this));
 			}
-			map.put(colName, f.get(this));
 		}
-		return map;		
+		return map;
 	}
 	
 	/**

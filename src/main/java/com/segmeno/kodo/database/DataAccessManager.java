@@ -312,35 +312,38 @@ public class DataAccessManager {
     	return (T)obj;
     }
     
-    private void addElemRecursively(DatabaseEntity baseEntity) throws Exception {
+    private void addElemRecursively(DatabaseEntity entity) throws Exception {
     	
-    	for (Field field : baseEntity.fields) {
+    	for (Field field : entity.fields) {
 			if (field.getAnnotation(MappingRelation.class) != null && field.getAnnotation(MappingRelation.class).mappingTableName().isEmpty()) {
-				// these are required parent elements which will first be created
+				// these are required parent elements which will first be created if not existing
 				if (DatabaseEntity.class.isAssignableFrom(field.getType())) {
-					final DatabaseEntity parent = (DatabaseEntity)field.get(baseEntity);
-					if (parent != null && parent.getPrimaryKeyValue() == null) {
-						addElemRecursively(parent);
+					
+					final DatabaseEntity elem = (DatabaseEntity)field.get(entity);
+					if (elem != null) {
+						if (elem.getPrimaryKeyValue() == null) {
+							addElemRecursively(elem);
+						}
 					}
 				}
 			}
     	}
     	final SimpleJdbcInsert insert = new SimpleJdbcInsert(jdbcTemplate)
-	            .withTableName(baseEntity.getTableName())
-	            .usingGeneratedKeyColumns(baseEntity.getPrimaryKeyColumn())
-	            .usingColumns(baseEntity.getColumnNames(false).toArray(new String[0]));
+	            .withTableName(entity.getTableName())
+	            .usingGeneratedKeyColumns(entity.getPrimaryKeyColumn())
+	            .usingColumns(entity.getColumnNames(false).toArray(new String[0]));
     	
-		final Number key = insert.executeAndReturnKey(baseEntity.toMap());
-		baseEntity.setPrimaryKeyValue(key);
+		final Number key = insert.executeAndReturnKey(entity.toMap());
+		entity.setPrimaryKeyValue(key);
     	
-		for (Field field : baseEntity.fields) {
+		for (Field field : entity.fields) {
 			if (field.getAnnotation(MappingRelation.class) != null && field.getAnnotation(MappingRelation.class).mappingTableName().isEmpty()) {
 				// these are dependent child elements which will be created after creating the parent element
 				if (List.class.isAssignableFrom(field.getType())) {
-	    			final List<DatabaseEntity> list = (List)field.get(baseEntity);
+	    			final List<DatabaseEntity> list = (List)field.get(entity);
 	    			for (DatabaseEntity child : list) {
 	    				final Field fkField = child.fields.stream().filter(f -> f.getName().equalsIgnoreCase(field.getAnnotation(MappingRelation.class).joinedColumnName())).findFirst().orElse(null);
-    					fkField.set(child, convertTo(fkField.getType(), baseEntity.getPrimaryKeyValue()));
+    					fkField.set(child, convertTo(fkField.getType(), entity.getPrimaryKeyValue()));
     					
 	    				if (child.getPrimaryKeyValue() == null) {
 	    					addElemRecursively(child);
