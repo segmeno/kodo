@@ -90,7 +90,7 @@ public abstract class DatabaseEntity {
 				colName = f.getAnnotation(MappingRelation.class).masterColumnName().toLowerCase();
 				if (DatabaseEntity.class.isAssignableFrom(f.getType())) {
 					final DatabaseEntity elem = (DatabaseEntity)f.get(this);
-					map.put(colName, elem.getPrimaryKeyValue());
+					map.put(colName, elem == null ? null : elem.getPrimaryKeyValue());
 				}
 				else {
 					map.put(colName, f.get(this));
