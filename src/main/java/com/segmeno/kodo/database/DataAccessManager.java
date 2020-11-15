@@ -21,8 +21,6 @@ import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.core.simple.SimpleJdbcInsert;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 
 import com.segmeno.kodo.annotation.Column;
 import com.segmeno.kodo.annotation.CustomSql;
@@ -217,15 +215,29 @@ public class DataAccessManager {
 			else if (DatabaseEntity.class.isAssignableFrom(field.getType())) {
 				
 				final DatabaseEntity childEntity = (DatabaseEntity)field.getType().getConstructor().newInstance();	
-				Object childPk = getValueFromRow(alias, childEntity.getPrimaryKeyColumn(), row, true);
-				String childUniqueKey = alias + "#" + childPk;
+				final String subAlias;
+    			// this is allowed to happen if the database entity has a custom sql annotation
+    			if (entity.getTableName() == null) {
+    				if (entity.getClass().isAnnotationPresent(CustomSql.class)) {
+    					subAlias = field.getName();
+					}
+    				else {
+    					throw new Exception("no table name defined! Either change 'getTableName' method of " + entity.getClass().getName() + " to return a value or use the @CustomSql annotation");
+    				}
+    			}
+    			else {
+    				subAlias = entity.getTableName() + SUB_FIELD_DELIMITER + field.getName();
+    			}
+    			
+    			Object childPk = getValueFromRow(subAlias, childEntity.getPrimaryKeyColumn(), row, true);
+    			String childUniqueKey = subAlias + "#" + childPk;
 				
 				if (childPk != null && !alreadyFilledObjects.containsKey(childUniqueKey) && !path.contains(childEntity.getTableName())) {
 					field.set(entity, childEntity);
 					
 					// keep track of the current level in the tree 
 					path += "/" + entity.getTableName();
-					rowToEntity(childEntity, entity.getTableName() + SUB_FIELD_DELIMITER + field.getName(), path, row, alreadyFilledObjects);
+					rowToEntity(childEntity, subAlias, path, row, alreadyFilledObjects);
 					path = path.substring(0, path.lastIndexOf("/"));
 				}
 			}
@@ -301,7 +313,6 @@ public class DataAccessManager {
      * @throws Exception
      */
     @SuppressWarnings("unchecked")
-	@Transactional(propagation = Propagation.REQUIRED)
     public <T> T addElem(DatabaseEntity obj) throws Exception {
     	try {
 			addElemRecursively(obj);
@@ -354,14 +365,12 @@ public class DataAccessManager {
 		}
     }
     
-	@Transactional(propagation = Propagation.REQUIRED)
 	public void updateElems(List<DatabaseEntity> entities) throws Exception {
     	for (DatabaseEntity entity : entities) {
     		updateElem(entity);
     	}
     }
     
-    @Transactional(propagation = Propagation.REQUIRED)
 	public void updateElem(DatabaseEntity obj) throws Exception {
     	if (obj.getPrimaryKeyValue()== null || Integer.valueOf(String.valueOf(obj.getPrimaryKeyValue())) == -1) {
 			addElem(obj);
@@ -400,7 +409,6 @@ public class DataAccessManager {
      * @param entityType
      * @throws Exception
      */
-    @Transactional(propagation = Propagation.REQUIRED)
 	public void deleteElems(Criteria criteria, Class<? extends DatabaseEntity> entityType) throws Exception {
     	deleteElems(new CriteriaGroup(Operator.AND, criteria), entityType);
     }
@@ -411,7 +419,6 @@ public class DataAccessManager {
      * @param entityType
      * @throws Exception
      */
-	@Transactional(propagation = Propagation.REQUIRED)
 	public void deleteElems(CriteriaGroup advancedCriteria, Class<? extends DatabaseEntity> entityType) throws Exception {
 		try {
 			final DatabaseEntity obj = entityType.getConstructor().newInstance();

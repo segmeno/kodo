@@ -41,7 +41,7 @@ public class Sort {
 		sortStmt.append(" ORDER BY");
 		
 		for (SortEntry entry : sortFields) {
-			sortStmt.append(" ").append(entry.fieldName).append(" ").append(entry.sortDirection);
+			sortStmt.append(" ").append(entry.getFieldName()).append(" ").append(entry.getSortDirection());
 		}
 	}
 	
@@ -56,29 +56,6 @@ public class Sort {
 	public void setSortFields(ArrayList<SortEntry> sortFields) {
 		this.sortFields = sortFields;
 		buildStmt();
-	}
-
-	class SortEntry {
-		private String fieldName;
-		private SortDirection sortDirection;
-		
-		public SortEntry(String fieldName, SortDirection sortDirection) {
-			this.fieldName = fieldName;
-			this.sortDirection = sortDirection;
-		}
-		
-		public String getFieldName() {
-			return fieldName;
-		}
-		public void setFieldName(String fieldName) {
-			this.fieldName = fieldName;
-		}
-		public SortDirection getSortDirection() {
-			return sortDirection;
-		}
-		public void setSortDirection(SortDirection sortDirection) {
-			this.sortDirection = sortDirection;
-		}		
 	}
 
 	@Override
