@@ -40,8 +40,14 @@ public class Sort {
 		sortStmt.setLength(0);
 		sortStmt.append(" ORDER BY");
 		
+		boolean isFirst = true;
 		for (final SortEntry entry : sortFields) {
-			sortStmt.append(" ").append(entry.fieldName).append(" ").append(entry.sortDirection);
+			if(isFirst) {
+				isFirst = false;
+			} else {
+				sortStmt.append(',');
+			}
+			sortStmt.append(' ').append(entry.fieldName).append(' ').append(entry.sortDirection);
 		}
 	}
 	
