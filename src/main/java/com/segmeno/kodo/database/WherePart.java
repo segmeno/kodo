@@ -130,6 +130,9 @@ public class WherePart {
 				case NOT_BLANK:
 					sb.append(notBlank(tableAlias, crit));
 					break;
+				case IS_NULL:
+					sb.append(isNull(tableAlias, crit));
+					break;
 				case NOT_NULL:
 					sb.append(notNull(tableAlias, crit));
 					break;
@@ -270,6 +273,11 @@ public class WherePart {
 	protected String notNull(String tableAlias, Criteria criteria) throws Exception {
 		validateCriteria(criteria);
 		return tableAlias + criteria.getFieldName() + " IS NOT NULL";
+	}
+	
+	protected String isNull(String tableAlias, Criteria criteria) throws Exception {
+		validateCriteria(criteria);
+		return tableAlias + criteria.getFieldName() + " IS NULL";
 	}
 	
 	protected String inSet(String tableAlias, Criteria criteria) throws Exception {
