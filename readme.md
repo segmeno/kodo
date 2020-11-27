@@ -54,6 +54,7 @@ As shown in the example above, your main entity TestUser aggregates multiple Sub
 
 The way fetching everything in one statement works, kodo alwas needs a PK for each object and sub object. Sometimes this seems a little inpractical, like the following DB view shows. Here we have an attribute definition customizable by the user, so she can define additional values with any object type we have in our application. In the GUI we want to display each additional value defined for the object type, regardless whether the user has already created one fpr the particular object: 
 
+```
 CREATE OR ALTER VIEW vwCamContractCustomAttributes AS
 	SELECT ca.CustomAttributeID, cad.CustomAttributeDefinitionID, ca.ObjectID, Value
 		FROM tbCustomAttributeDefinition cad 
@@ -65,6 +66,7 @@ CREATE OR ALTER VIEW vwCamContractCustomAttributes AS
 		JOIN tbContract c ON cv.ContractID NOT IN (SELECT ca.ObjectID FROM tbCustomAttribute ca WHERE ca.CustomAttributeDefinitionID = cad.CustomAttributeDefinitionID)
 		WHERE cad.Type = 'Contract'
 GO
+```
 
 Here you see, for the values that do not exist in tbCustomAttribute we create a virtual CustomAttributeID < 0, because kodo expects each existing Objekt to have an value for its primary key != null and > 0. Otherwise an call to update the entity will just create a new one.
 
