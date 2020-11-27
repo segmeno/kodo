@@ -56,14 +56,14 @@ The way fetching everything in one statement works, kodo alwas needs a PK for ea
 
 ```
 CREATE OR ALTER VIEW vwCamContractCustomAttributes AS
-	SELECT ca.CustomAttributeID, cad.CustomAttributeDefinitionID, ca.ObjectID, Value
+	SELECT ca.CustomAttributeID, cad.CustomAttributeDefinitionID, ca.ObjectID, ca.Value
 		FROM tbCustomAttributeDefinition cad 
 		JOIN tbCustomAttribute ca ON ca.CustomAttributeDefinitionID = cad.CustomAttributeDefinitionID
 		WHERE cad.Type = 'Contract'
 	UNION
 	SELECT -1 * row_number() over(ORDER BY cv.ContractVersionID) AS CustomAttributeID, cad.CustomAttributeDefinitionID, c.ContractID AS ObjectID, NULL AS Value
 		FROM tbCustomAttributeDefinition cad
-		JOIN tbContract c ON cv.ContractID NOT IN (SELECT ca.ObjectID FROM tbCustomAttribute ca WHERE ca.CustomAttributeDefinitionID = cad.CustomAttributeDefinitionID)
+		JOIN tbContract c ON c.ContractID NOT IN (SELECT ca.ObjectID FROM tbCustomAttribute ca WHERE ca.CustomAttributeDefinitionID = cad.CustomAttributeDefinitionID)
 		WHERE cad.Type = 'Contract'
 GO
 ```
