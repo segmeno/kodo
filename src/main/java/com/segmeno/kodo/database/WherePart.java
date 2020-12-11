@@ -1,5 +1,9 @@
 package com.segmeno.kodo.database;
 
+import com.segmeno.kodo.transport.Criteria;
+import com.segmeno.kodo.transport.CriteriaGroup;
+import com.segmeno.kodo.transport.Operator;
+
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -8,10 +12,6 @@ import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import com.segmeno.kodo.transport.Criteria;
-import com.segmeno.kodo.transport.CriteriaGroup;
-import com.segmeno.kodo.transport.Operator;
 
 public class WherePart {
 	
@@ -25,7 +25,7 @@ public class WherePart {
 		}
 	};
 	
-	protected StringBuilder sb = new StringBuilder();
+	protected final String sql;
 	protected List<Object> params = new ArrayList<>();
 	protected List<String> columnNames = new ArrayList<>();
 	
@@ -35,7 +35,7 @@ public class WherePart {
 	 * @param adCrit - the filter settings to be used
 	 * @throws Exception
 	 */
-	public WherePart(String tableAlias, CriteriaGroup adCrit) throws Exception {
+	public WherePart(final String tableAlias, final CriteriaGroup adCrit) throws Exception {
 		this(tableAlias, null, adCrit);
 	}
 	
@@ -46,7 +46,7 @@ public class WherePart {
 	 * @param adCrit - the filter settings to be used
 	 * @throws Exception
 	 */
-	public WherePart(String tableAlias, List<String> columnNames, CriteriaGroup adCrit) throws Exception {
+	public WherePart(String tableAlias, final List<String> columnNames, CriteriaGroup adCrit) throws Exception {
 		if (columnNames != null) {
 			this.columnNames = columnNames.stream().map(col -> col.toUpperCase()).collect(Collectors.toList());
 		}
@@ -57,133 +57,152 @@ public class WherePart {
 			adCrit = new CriteriaGroup();
 		}
 		
-		final List<Criteria> crits = adCrit.getCriterias();
+		final String tmp = addCriterias(tableAlias, adCrit);
+		sql = tmp != null && tmp.length() > 2 ? tmp : "(1 = 1)";
+	}
+
+	private String addCriterias(final String tableAlias, final CriteriaGroup cg) throws Exception {
+		final List<Criteria> crits = cg.getCriterias();
+		final StringBuilder sb = new StringBuilder(1024);
 		if (crits.size() > 0) {
 			sb.append("(");
 			
-			for (Criteria crit : crits) {
+			for (final Criteria crit : crits) {
 				if (crit == null) {
-					sb.setLength(sb.length()-1);	// we remove the parenthesis
 					continue;
 				}
-				// first check if the column name is really existing
-				if (!this.columnNames.isEmpty()) {
-					if (crit.getFieldName() != null && !this.columnNames.contains(crit.getFieldName().toUpperCase())) {
-						final String s = "Check your filter settings: Column with Name '" + crit.getFieldName() + "' used in criteria, but not existing in table " + tableAlias;
-						log.error(s);
-						throw new Exception(s);
+				
+				if(crit.getCriteriaGroup() != null) {
+					final String tmp = addCriterias(tableAlias, crit.getCriteriaGroup());
+					if(tmp == null || tmp.length() < 3) {
+						continue;
 					}
-				}
+					sb.append(tmp);
+				} else {
 				
-				switch (crit.getOperator()) {
-				case CONTAINS:
-					sb.append(contains(tableAlias, crit));
-					break;
-				case ICONTAINS:
-					sb.append(icontains(tableAlias, crit));
-					break;
-				case NOT_CONTAINS:
-					sb.append(notContains(tableAlias, crit));
-					break;
-				case INOT_CONTAINS:
-					sb.append(notContains(tableAlias, crit));
-					break;
-				case EQUALS:
-					sb.append(equals(tableAlias, crit));
-					break;
-				case IEQUALS:
-					sb.append(iequals(tableAlias, crit));
-					break;
-				case GREATER_OR_EQUAL:
-					sb.append(greaterOrEqual(tableAlias, crit));
-					break;
-				case GREATER_THAN:
-					sb.append(greaterThan(tableAlias, crit));
-					break;
-				case LESS_OR_EQUAL:
-					sb.append(lessOrEqual(tableAlias, crit));
-					break;
-				case LESS_THAN:
-					sb.append(lessThan(tableAlias, crit));
-					break;
-				case STARTS_WITH:
-					sb.append(startsWith(tableAlias, crit));
-					break;
-				case ISTARTS_WITH:
-					sb.append(istartsWith(tableAlias, crit));
-					break;
-				case INOT_STARTS_WITH:
-					sb.append(inotStartsWith(tableAlias, crit));
-					break;
-				case ENDS_WITH:
-					sb.append(endsWith(tableAlias, crit));
-					break;
-				case IENDS_WITH:
-					sb.append(iendsWith(tableAlias, crit));
-					break;
-				case INOT_ENDS_WITH:
-					sb.append(inotEndsWith(tableAlias, crit));
-					break;
-				case IS_BLANK:
-					sb.append(isBlank(tableAlias, crit));
-					break;
-				case NOT_BLANK:
-					sb.append(notBlank(tableAlias, crit));
-					break;
-				case IS_NULL:
-					sb.append(isNull(tableAlias, crit));
-					break;
-				case NOT_NULL:
-					sb.append(notNull(tableAlias, crit));
-					break;
-				case IN_SET:
-					sb.append(inSet(tableAlias, crit));
-					break;
-				case NOT_IN_SET:
-					sb.append(notInSet(tableAlias, crit));
-					break;
-				default:
-					throw new Exception("unsupported OperatorId " + crit.getOperator() + "! Please extend this class: " + this.getClass());
+					// first check if the column name is really existing
+					if (!this.columnNames.isEmpty()) {
+						if (crit.getFieldName() != null && !this.columnNames.contains(crit.getFieldName().toUpperCase())) {
+							final String s = "Check your filter settings: Column with Name '" + crit.getFieldName() + "' used in criteria, but not existing in table " + tableAlias;
+							log.error(s);
+							throw new Exception(s);
+						}
+					}
+					
+					switch (crit.getOperator()) {
+					case CONTAINS:
+						sb.append(contains(tableAlias, crit));
+						break;
+					case ICONTAINS:
+						sb.append(icontains(tableAlias, crit));
+						break;
+					case NOT_CONTAINS:
+						sb.append(notContains(tableAlias, crit));
+						break;
+					case INOT_CONTAINS:
+						sb.append(notContains(tableAlias, crit));
+						break;
+					case EQUALS:
+						sb.append(equals(tableAlias, crit));
+						break;
+					case IEQUALS:
+						sb.append(iequals(tableAlias, crit));
+						break;
+					case GREATER_OR_EQUAL:
+						sb.append(greaterOrEqual(tableAlias, crit));
+						break;
+					case GREATER_THAN:
+						sb.append(greaterThan(tableAlias, crit));
+						break;
+					case LESS_OR_EQUAL:
+						sb.append(lessOrEqual(tableAlias, crit));
+						break;
+					case LESS_THAN:
+						sb.append(lessThan(tableAlias, crit));
+						break;
+					case STARTS_WITH:
+						sb.append(startsWith(tableAlias, crit));
+						break;
+					case ISTARTS_WITH:
+						sb.append(istartsWith(tableAlias, crit));
+						break;
+					case INOT_STARTS_WITH:
+						sb.append(inotStartsWith(tableAlias, crit));
+						break;
+					case ENDS_WITH:
+						sb.append(endsWith(tableAlias, crit));
+						break;
+					case IENDS_WITH:
+						sb.append(iendsWith(tableAlias, crit));
+						break;
+					case INOT_ENDS_WITH:
+						sb.append(inotEndsWith(tableAlias, crit));
+						break;
+					case IS_BLANK:
+						sb.append(isBlank(tableAlias, crit));
+						break;
+					case NOT_BLANK:
+						sb.append(notBlank(tableAlias, crit));
+						break;
+					case IS_NULL:
+						sb.append(isNull(tableAlias, crit));
+						break;
+					case NOT_NULL:
+						sb.append(notNull(tableAlias, crit));
+						break;
+					case IN_SET:
+						sb.append(inSet(tableAlias, crit));
+						break;
+					case NOT_IN_SET:
+						sb.append(notInSet(tableAlias, crit));
+						break;
+					default:
+						throw new Exception("unsupported OperatorId " + crit.getOperator() + "! Please extend this class: " + this.getClass());
+					}					
 				}
-				
-				sb.append(" ").append(adCrit.getOperator().getValue()).append(" ");
+				sb.append(' ').append(cg.getOperator().getValue()).append(' ');
 			}
 			
-			if (sb.length() > 0) {
-				sb.setLength(sb.length() - (adCrit.getOperator().getValue().length() + 2));	// remove last ' OperatorId '
-				sb.append(")");
+			if (sb.length() > 1) {
+				sb.setLength(sb.length() - (cg.getOperator().getValue().length() + 2));	// remove last ' OperatorId '
 			}
+			sb.append(")");
 		}
+		
+		if(log.isDebugEnabled()) {
+			log.debug("parsed " + cg + " to " + sb);
+		}
+		return sb.toString();
 	}
 	
-	protected String contains(String tableAlias, Criteria criteria) throws Exception {
+	protected String contains(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
 		final Object param = criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue();
 		params.add("%" + param + "%");
 		return tableAlias + criteria.getFieldName() + " LIKE ?";
 	}
 	
-	protected String icontains(String tableAlias, Criteria criteria) throws Exception {
+	protected String icontains(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
 		final Object param = criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue();
 		params.add("%" + param + "%");
 		return "LOWER(" + tableAlias + criteria.getFieldName() + ") LIKE LOWER(?)";
 	}
 	
-	protected String notContains(String tableAlias, Criteria criteria) throws Exception {
+	protected String notContains(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
 		final Object param = criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue();
 		params.add("%" + param + "%");
 		return tableAlias + criteria.getFieldName() + " NOT LIKE ?";
 	}
 	
-	protected String equals(String tableAlias, Criteria criteria) throws Exception {
+	protected String equals(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
 		params.add(criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue());
 		return tableAlias + criteria.getFieldName() + " = ?";
 	}
 	
-	protected String iequals(String tableAlias, Criteria criteria) throws Exception {
+	protected String iequals(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
 		if (criteria.getStringValue() != null) {
 			params.add(criteria.getStringValue());
@@ -195,92 +214,92 @@ public class WherePart {
 		}
 	}
 	
-	protected String greaterOrEqual(String tableAlias, Criteria criteria) throws Exception {
+	protected String greaterOrEqual(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
 		params.add(criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue());
 		return tableAlias + criteria.getFieldName() + " >= ?";
 	}
 	
-	protected String greaterThan(String tableAlias, Criteria criteria) throws Exception {
+	protected String greaterThan(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
 		params.add(criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue());
 		return tableAlias + criteria.getFieldName() + " > ?";
 	}
 	
-	protected String lessOrEqual(String tableAlias, Criteria criteria) throws Exception {
+	protected String lessOrEqual(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
 		params.add(criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue());
 		return tableAlias + criteria.getFieldName() + " <= ?";
 	}
 	
-	protected String lessThan(String tableAlias, Criteria criteria) throws Exception {
+	protected String lessThan(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
 		params.add(criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue());
 		return tableAlias + criteria.getFieldName() + " < ?";
 	}
 	
-	protected String startsWith(String tableAlias, Criteria criteria) throws Exception {
+	protected String startsWith(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
 		final Object param = criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue();
 		params.add(param + "%");
 		return tableAlias + criteria.getFieldName() + " LIKE ?";
 	}
 	
-	protected String istartsWith(String tableAlias, Criteria criteria) throws Exception {
+	protected String istartsWith(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
 		final Object param = criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue();
 		params.add(param + "%");
 		return "LOWER(" + tableAlias + criteria.getFieldName() + ") LIKE LOWER(?)";
 	}
 	
-	protected String inotStartsWith(String tableAlias, Criteria criteria) throws Exception {
+	protected String inotStartsWith(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
 		final Object param = criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue();
 		params.add(param + "%");
 		return "LOWER(" + tableAlias + criteria.getFieldName() + ") NOT LIKE LOWER(?)";
 	}
 	
-	protected String endsWith(String tableAlias, Criteria criteria) {
+	protected String endsWith(final String tableAlias, final Criteria criteria) {
 		final Object param = criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue();
 		params.add("%" + param);
 		return tableAlias + criteria.getFieldName() + " LIKE ?";
 	}
 	
-	protected String iendsWith(String tableAlias, Criteria criteria) throws Exception {
+	protected String iendsWith(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
 		final Object param = criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue();
 		params.add("%" + param);
 		return "LOWER(" + tableAlias + criteria.getFieldName() + ") LIKE LOWER(?)";
 	}
 	
-	protected String inotEndsWith(String tableAlias, Criteria criteria) throws Exception {
+	protected String inotEndsWith(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
 		final Object param = criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue();
 		params.add("%" + param);
 		return "LOWER(" + tableAlias + criteria.getFieldName() + ") NOT LIKE LOWER(?)";
 	}
 	
-	protected String isBlank(String tableAlias, Criteria criteria) throws Exception {
+	protected String isBlank(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
 		return "(" + tableAlias + criteria.getFieldName() + " = '' OR " + tableAlias + criteria.getFieldName() + " IS NULL)";
 	}
 	
-	protected String notBlank(String tableAlias, Criteria criteria) throws Exception {
+	protected String notBlank(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
 		return "(" + tableAlias + criteria.getFieldName() + " != '' AND " + tableAlias + criteria.getFieldName() + " IS NOT NULL)";
 	}
 	
-	protected String notNull(String tableAlias, Criteria criteria) throws Exception {
+	protected String notNull(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
 		return tableAlias + criteria.getFieldName() + " IS NOT NULL";
 	}
 	
-	protected String isNull(String tableAlias, Criteria criteria) throws Exception {
+	protected String isNull(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
 		return tableAlias + criteria.getFieldName() + " IS NULL";
 	}
 	
-	protected String inSet(String tableAlias, Criteria criteria) throws Exception {
+	protected String inSet(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
 		final Class<?> type = determineListType(criteria.getListValues());
 		final String csv;
@@ -293,7 +312,7 @@ public class WherePart {
 		return tableAlias + criteria.getFieldName() + " IN (" + csv + ")";
 	}
 	
-	protected String notInSet(String tableAlias, Criteria criteria) throws Exception {
+	protected String notInSet(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
 		final Class<?> type = determineListType(criteria.getListValues());
 		final String csv;
@@ -307,15 +326,12 @@ public class WherePart {
 	}
 	
 	public boolean isEmpty() {
-		return sb.length() == 0;
+		return sql.length() == 0;
 	}
 
 	@Override
 	public String toString() {
-		if (sb.length() == 0) {
-			sb.append("(1 = 1)");
-		}
-		return sb.toString();
+		return sql;
 	}
 	
 	public List<Object> getValues() {
@@ -327,7 +343,7 @@ public class WherePart {
 	 * @param criteria
 	 * @throws Exception
 	 */
-	private void validateCriteria(Criteria criteria) throws Exception {
+	private void validateCriteria(final Criteria criteria) throws Exception {
 		// check if a list value is set, but a unary operator is used
 		if ((criteria.getListValues() != null && !criteria.getListValues().isEmpty()) && !ALLOWED_LIST_OPERATORS.contains(criteria.getOperator())) {
 			final String msg = "the operator '" + criteria.getOperator() + "' does not support list values";
@@ -342,7 +358,7 @@ public class WherePart {
 		}
 	}
 	
-	private Class determineListType(List<?> list) {
+	private Class determineListType(final List<?> list) {
 		if (list != null && list.size() > 0) {
 			final Object o = list.get(0);
 			return o.getClass();

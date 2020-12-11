@@ -8,17 +8,17 @@ public class CriteriaGroup {
 	private  Operator operator = Operator.AND;
 	private final List<Criteria> criterias = new ArrayList<Criteria>();
 	
-	public CriteriaGroup(Operator operator, List<Criteria> criterias) {
+	public CriteriaGroup(final Operator operator, final List<Criteria> criterias) {
 		this.operator = operator;
 		this.criterias.addAll(criterias);
 	}
 	
-	public CriteriaGroup(Operator operator, Criteria criteria) {
+	public CriteriaGroup(final Operator operator, final Criteria criteria) {
 		this.operator = operator;
 		this.criterias.add(criteria);
 	}
 	
-	public CriteriaGroup(Operator operator) {
+	public CriteriaGroup(final Operator operator) {
 		this.operator = operator;
 	}
 	
@@ -33,7 +33,7 @@ public class CriteriaGroup {
 		return criterias;
 	}
 	
-	public CriteriaGroup add(Criteria c) {
+	public CriteriaGroup add(final Criteria c) {
 		criterias.add(c);
 		return this;
 	}

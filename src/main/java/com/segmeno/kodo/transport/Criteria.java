@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class Criteria {
-	
+	private CriteriaGroup criteriaGroup;
 	private String fieldName;
 	private Operator operator;
 	private String stringValue; 
@@ -13,30 +13,42 @@ public class Criteria {
 	
 	public Criteria() {}
 	
-	public Criteria(String fieldName, Operator operator) {
+	public Criteria(final CriteriaGroup criteriaGroup) {
+		this.criteriaGroup = criteriaGroup;
+	}
+	
+	public Criteria(final String fieldName, final Operator operator) {
 		this(fieldName, operator, null, null, null);
 	}
 	
-	public Criteria(String fieldName, Operator operator, String stringValue) {
+	public Criteria(final String fieldName, final Operator operator, final String stringValue) {
 		this(fieldName, operator, stringValue, null, null);
 	}
 	
-	public Criteria(String fieldName, Operator operator, Number numberValue) {
+	public Criteria(final String fieldName, final Operator operator, final Number numberValue) {
 		this(fieldName, operator, null, numberValue, null);
 	}
 	
-	public Criteria(String fieldName, Operator operator, List<?> listValues) {
+	public Criteria(final String fieldName, final Operator operator, final List<?> listValues) {
 		this(fieldName, operator, null, null, listValues);
 	}
 	
-	private Criteria(String fieldName, Operator operator, String stringValue, Number numberValue, List<?> listValues) {
+	private Criteria(final String fieldName, final Operator operator, final String stringValue, final Number numberValue, final List<?> listValues) {
 		this.fieldName = fieldName;
 		this.operator = operator;
 		this.stringValue = stringValue;
 		this.numberValue = numberValue;
 		this.setListValues(listValues);
 	}
-			
+	
+	public CriteriaGroup getCriteriaGroup() {
+		return criteriaGroup;
+	}
+
+	public void setCriteriaGroup(final CriteriaGroup criteriaGroup) {
+		this.criteriaGroup = criteriaGroup;
+	}
+
 	public String getFieldName() {
 		return fieldName;
 	}
@@ -57,13 +69,13 @@ public class Criteria {
 		return listValues;
 	}
 
-	public void setListValues(List<?> listValues) {
+	public void setListValues(final List<?> listValues) {
 		this.listValues = listValues;
 	}
 
 	@Override
 	public String toString() {
-		return "Criteria [fieldName=" + fieldName + ", operator=" + operator + ", stringValue=" + stringValue
+		return "Criteria [criteriaGroup=" + criteriaGroup + ", fieldName=" + fieldName + ", operator=" + operator + ", stringValue=" + stringValue
 				+ ", numberValue=" + numberValue + ", listValues=" + listValues + "]";
 	}
 
