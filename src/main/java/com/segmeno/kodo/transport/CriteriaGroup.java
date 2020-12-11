@@ -40,9 +40,7 @@ public class CriteriaGroup {
 
 	@Override
 	public String toString() {
-		final StringBuilder sb = new StringBuilder();
-		criterias.forEach(c -> sb.append(c.toString()));
-		return "CriteriaGroup [operator=" + operator + ", criterias=" + sb.toString() + "]";
+		return "CriteriaGroup [operator=" + operator + ", criterias=" + criterias.toString() + "]";
 	}
 	
 }

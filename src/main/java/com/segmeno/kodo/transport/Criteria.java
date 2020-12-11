@@ -78,5 +78,4 @@ public class Criteria {
 		return "Criteria [criteriaGroup=" + criteriaGroup + ", fieldName=" + fieldName + ", operator=" + operator + ", stringValue=" + stringValue
 				+ ", numberValue=" + numberValue + ", listValues=" + listValues + "]";
 	}
-
 }
