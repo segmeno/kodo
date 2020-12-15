@@ -18,17 +18,17 @@ public class Sort {
 	 * @param fieldName
 	 * @param sortDirection
 	 */
-	public Sort(String fieldName, SortDirection sortDirection) {
+	public Sort(final String fieldName, final SortDirection sortDirection) {
 		sortFields.add(new SortEntry(fieldName, sortDirection));
 		buildStmt();
 	}
 	
-	public Sort(ArrayList<SortEntry> sortFields) {
+	public Sort(final ArrayList<SortEntry> sortFields) {
 		this.sortFields = sortFields;
 		buildStmt();
 	}
 	
-	public Sort(SortEntry entry) {
+	public Sort(final SortEntry entry) {
 		sortFields.add(entry);
 		buildStmt();
 	}
@@ -38,14 +38,19 @@ public class Sort {
 	
 	public void buildStmt() {
 		sortStmt.setLength(0);
-		sortStmt.append(" ORDER BY");
 		
-		for (SortEntry entry : sortFields) {
-			sortStmt.append(" ").append(entry.getFieldName()).append(" ").append(entry.getSortDirection());
+		for (final SortEntry entry : sortFields) {
+			if(sortStmt.length() == 0) {
+				sortStmt.append(" ORDER BY ");
+			} else {
+				sortStmt.append(", ");
+			}
+			
+			sortStmt.append(entry.getFieldName()).append(' ').append(entry.getSortDirection());
 		}
 	}
 	
-	public void addSortField(String fieldName, SortDirection sortDirection) {
+	public void addSortField(final String fieldName, final SortDirection sortDirection) {
 		sortFields.add(new SortEntry(fieldName, sortDirection));
 	}
 	
@@ -53,7 +58,7 @@ public class Sort {
 		return sortFields;
 	}
 	
-	public void setSortFields(ArrayList<SortEntry> sortFields) {
+	public void setSortFields(final ArrayList<SortEntry> sortFields) {
 		this.sortFields = sortFields;
 		buildStmt();
 	}
