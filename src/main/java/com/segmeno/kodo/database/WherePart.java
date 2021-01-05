@@ -108,6 +108,12 @@ public class WherePart {
 					case IEQUALS:
 						sb.append(iequals(tableAlias, crit));
 						break;
+					case NOT_EQUAL:
+						sb.append(not_equals(tableAlias, crit));
+						break;
+					case INOT_EQUAL:
+						sb.append(inot_equals(tableAlias, crit));
+						break;
 					case GREATER_OR_EQUAL:
 						sb.append(greaterOrEqual(tableAlias, crit));
 						break;
@@ -211,6 +217,24 @@ public class WherePart {
 		else {
 			params.add(criteria.getNumberValue());
 			return tableAlias + criteria.getFieldName() + " LIKE ?";
+		}
+	}
+	
+	protected String not_equals(final String tableAlias, final Criteria criteria) throws Exception {
+		validateCriteria(criteria);
+		params.add(criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue());
+		return tableAlias + criteria.getFieldName() + " <> ?";
+	}
+	
+	protected String inot_equals(final String tableAlias, final Criteria criteria) throws Exception {
+		validateCriteria(criteria);
+		if (criteria.getStringValue() != null) {
+			params.add(criteria.getStringValue());
+			return "LOWER(" + tableAlias + criteria.getFieldName() + ") NOT LIKE LOWER(?)";
+		}
+		else {
+			params.add(criteria.getNumberValue());
+			return tableAlias + criteria.getFieldName() + " NOT LIKE ?";
 		}
 	}
 	
