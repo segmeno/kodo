@@ -167,7 +167,7 @@ public class DataAccessManager {
 	
 	private void rowToEntity(final DatabaseEntity entity, final String alias, String path, final Map<String,Object> row, final Map<String,Object> alreadyFilledObjects) throws Exception {
 		// first thing to do: retrieve pk value and build unique key
-		final String pk = String.valueOf(getValueFromRow(alias, entity.getPrimaryKeyColumn(), row, true));
+		final String pk = String.valueOf(getValueFromRow(alias, entity.getPrimaryKeyColumn(), row, false));
 		final String uniqueKey = alias + "#" + pk;
 		
 		for (final Field field : entity.fields) {
