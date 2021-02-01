@@ -297,7 +297,7 @@ public class DataAccessManager {
 			final StringBuilder where = new StringBuilder();
 			buildQueryRecursively(mainEntity, criteria, select, from, join, where, new Sort(), params, 0);
 			
-			final String sql = "SELECT COUNT (DISTINCT " + mainEntity.getTableName() + "." + mainEntity.getPrimaryKeyColumn() + ")" + from.toString() + join.toString() + where.toString();
+			final String sql = "SELECT COUNT(DISTINCT " + mainEntity.getTableName() + "." + mainEntity.getPrimaryKeyColumn() + ")" + from.toString() + join.toString() + where.toString();
 			
 			log.debug("Query: " + sqlPrettyPrint(sql) + "\t[" + toCsv(params.toArray()) + "]");
 			return jdbcTemplate.queryForObject(sql, params.toArray(), Long.class);
