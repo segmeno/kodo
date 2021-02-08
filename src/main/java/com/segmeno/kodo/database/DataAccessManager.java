@@ -16,6 +16,7 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -158,8 +159,8 @@ public class DataAccessManager {
 			else {
 				baseEntity = (DatabaseEntity)resultMap.get(pk);
 			}
-			final String alias = baseEntity.getTableName() != null ? baseEntity.getTableName() : baseEntity.getClass().getSimpleName();
-			rowToEntity(baseEntity, baseEntity.getTableName(), "", row, alreadyFilledObjects);
+			final String startPath = baseEntity.getTableName() == null ? "" : baseEntity.getTableName();
+			rowToEntity(baseEntity, baseEntity.getTableName(), startPath, row, alreadyFilledObjects);
 			resultMap.put(pk, (T)baseEntity);
 		}
 		return resultMap.values().stream().collect(Collectors.toList());
@@ -179,7 +180,7 @@ public class DataAccessManager {
     			
 				if (DatabaseEntity.class.isAssignableFrom(genericClass)) {
 					
-	    			final DatabaseEntity childEntity = (DatabaseEntity)genericClass.getConstructor().newInstance();
+	    			DatabaseEntity childEntity = (DatabaseEntity)genericClass.getConstructor().newInstance();
 	    			final String subAlias;
 	    			// this is allowed to happen if the database entity has a custom sql annotation
 	    			if (entity.getTableName() == null) {
@@ -197,26 +198,32 @@ public class DataAccessManager {
 	    			final Object childPk = getValueFromRow(subAlias, childEntity.getPrimaryKeyColumn(), row, true);
 	    			final String childUniqueKey = subAlias + "#" + childPk;
 						
-					if (childPk != null && !alreadyFilledObjects.containsKey(childUniqueKey) && !path.contains(childEntity.getTableName())) {
-						
-						List<DatabaseEntity> list = (List)field.get(entity);
-						if (list == null) {
+	    			if (childPk != null && !recursionCheck(path, childEntity.getTableName())) {
+	    				List<DatabaseEntity> list = (List)field.get(entity);
+	    				if (list == null) {
 							list = new ArrayList<>();
 						}
-						list.add(childEntity);
-						field.set(entity, list);
-						alreadyFilledObjects.put(childUniqueKey, entity);
-						
+	    				
+	    				if (!alreadyFilledObjects.containsKey(childUniqueKey)) {
+	    					field.set(entity, list);
+	    					list.add(childEntity);
+	    					alreadyFilledObjects.put(childUniqueKey, childEntity);
+	    				}
+	    				else {
+	    					childEntity = (DatabaseEntity)alreadyFilledObjects.get(childUniqueKey);
+	    				}
 						// keep track of the current level in the tree 
-						path += "/" + entity.getTableName();
+						path += "/" + childEntity.getTableName();
 						rowToEntity(childEntity, subAlias, path, row, alreadyFilledObjects);
 						path = path.substring(0, path.lastIndexOf("/"));
 					}
 				}
 			}
 			else if (DatabaseEntity.class.isAssignableFrom(field.getType())) {
-				
-				final DatabaseEntity childEntity = (DatabaseEntity)field.getType().getConstructor().newInstance();	
+				DatabaseEntity childEntity = (DatabaseEntity)field.get(entity);
+				if (childEntity == null) {
+					childEntity = (DatabaseEntity)field.getType().getConstructor().newInstance();
+				}
 				final String subAlias;
     			// this is allowed to happen if the database entity has a custom sql annotation
     			if (entity.getTableName() == null) {
@@ -234,11 +241,15 @@ public class DataAccessManager {
     			final Object childPk = getValueFromRow(subAlias, childEntity.getPrimaryKeyColumn(), row, true);
     			final String childUniqueKey = subAlias + "#" + childPk;
 				
-				if (childPk != null && !alreadyFilledObjects.containsKey(childUniqueKey) && !path.contains(childEntity.getTableName())) {
-					field.set(entity, childEntity);
-					
+    			if (childPk != null) {
+    				if (!alreadyFilledObjects.containsKey(childUniqueKey)) {
+    					field.set(entity, childEntity);
+    				}
+    				else {
+    					childEntity = (DatabaseEntity)alreadyFilledObjects.get(childUniqueKey);
+    				}
 					// keep track of the current level in the tree 
-					path += "/" + entity.getTableName();
+					path += "/" + childEntity.getTableName();
 					rowToEntity(childEntity, subAlias, path, row, alreadyFilledObjects);
 					path = path.substring(0, path.lastIndexOf("/"));
 				}
@@ -247,7 +258,7 @@ public class DataAccessManager {
 				final String colName = field.getAnnotation(Column.class) != null ? field.getAnnotation(Column.class).columnName() : field.getName();
 				// this is a field of the main entity (on first level). Then we do not use aliases
 				final String entityField;
-				if (path.isEmpty() || alias == null) {
+				if (!path.contains("/") || alias == null) {
 					entityField = colName;
 				}
 				else {
@@ -266,6 +277,14 @@ public class DataAccessManager {
 		alreadyFilledObjects.put(uniqueKey, entity);
 	}
 	
+	private boolean recursionCheck(String path, String tableName) {
+		if (path == null || path.isEmpty() || !path.contains("/")) {
+			return false;
+		}
+		final String currDir = path.substring(path.indexOf("/")+1, path.length());
+		return currDir.equals(tableName);
+	}
+
 	private Object getValueFromRow(final String alias, String fieldName, final Map<String,Object> row, final boolean useAlias) {
 		if (alias != null && useAlias) {
 			fieldName = alias + TABLE_COL_DELIMITER + fieldName;
