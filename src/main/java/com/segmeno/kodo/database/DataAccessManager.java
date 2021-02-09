@@ -1,14 +1,5 @@
 package com.segmeno.kodo.database;
 
-import com.segmeno.kodo.annotation.Column;
-import com.segmeno.kodo.annotation.CustomSql;
-import com.segmeno.kodo.annotation.MappingRelation;
-import com.segmeno.kodo.transport.Criteria;
-import com.segmeno.kodo.transport.CriteriaGroup;
-import com.segmeno.kodo.transport.Operator;
-import com.segmeno.kodo.transport.Sort;
-import com.segmeno.kodo.transport.Sort.SortDirection;
-
 import java.lang.reflect.Field;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
@@ -16,7 +7,6 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -33,6 +23,15 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.core.simple.SimpleJdbcInsert;
+
+import com.segmeno.kodo.annotation.Column;
+import com.segmeno.kodo.annotation.CustomSql;
+import com.segmeno.kodo.annotation.MappingRelation;
+import com.segmeno.kodo.transport.Criteria;
+import com.segmeno.kodo.transport.CriteriaGroup;
+import com.segmeno.kodo.transport.Operator;
+import com.segmeno.kodo.transport.Sort;
+import com.segmeno.kodo.transport.Sort.SortDirection;
 
 public class DataAccessManager {
 
@@ -198,7 +197,7 @@ public class DataAccessManager {
 	    			final Object childPk = getValueFromRow(subAlias, childEntity.getPrimaryKeyColumn(), row, true);
 	    			final String childUniqueKey = subAlias + "#" + childPk;
 						
-	    			if (childPk != null && !recursionCheck(path, childEntity.getTableName())) {
+	    			if (childPk != null) {
 	    				List<DatabaseEntity> list = (List)field.get(entity);
 	    				if (list == null) {
 							list = new ArrayList<>();
@@ -239,7 +238,7 @@ public class DataAccessManager {
     			}
     			
     			final Object childPk = getValueFromRow(subAlias, childEntity.getPrimaryKeyColumn(), row, true);
-    			final String childUniqueKey = subAlias + "#" + childPk;
+    			final String childUniqueKey = subAlias.replace("_", "#"+pk) + "#" + childPk;
 				
     			if (childPk != null) {
     				if (!alreadyFilledObjects.containsKey(childUniqueKey)) {
@@ -275,14 +274,6 @@ public class DataAccessManager {
 			}
 		}
 		alreadyFilledObjects.put(uniqueKey, entity);
-	}
-	
-	private boolean recursionCheck(String path, String tableName) {
-		if (path == null || path.isEmpty() || !path.contains("/")) {
-			return false;
-		}
-		final String currDir = path.substring(path.indexOf("/")+1, path.length());
-		return currDir.equals(tableName);
 	}
 
 	private Object getValueFromRow(final String alias, String fieldName, final Map<String,Object> row, final boolean useAlias) {
