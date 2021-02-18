@@ -7,7 +7,9 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -37,6 +39,7 @@ public class DataAccessManagerTest {
 	private static DataAccessManager manager;
 	private static Connection con;
 	private static JdbcDataSource ds;
+	private static SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd");
 
 	@BeforeClass
 	public static void setup() throws Exception {
@@ -83,6 +86,19 @@ public class DataAccessManagerTest {
 		stmt.execute("insert into tbUserRole (userId, roleId) values ((SELECT id FROM tbUser WHERE Name = 'Tim'), (SELECT id FROM tbRole WHERE Name = 'Tester'))");
 
 		con.commit();
+	}
+	
+	@Test
+	public void dateBetweenTest() throws Exception {
+		Date from = DATE_FORMAT.parse("2019-01-01");
+		Date to = DATE_FORMAT.parse("2020-05-05");
+		List<Date> dates = new ArrayList<>();
+		dates.add(from);
+		dates.add(to);
+		Criteria c = new Criteria("createdAt", Operator.BETWEEN, dates);
+		List<TestUser> users = manager.getElems(c, TestUser.class, 0);
+		assertTrue(users.size() == 1);
+		assertTrue(users.get(0).name.equals("Tom"));
 	}
 
 	@Test

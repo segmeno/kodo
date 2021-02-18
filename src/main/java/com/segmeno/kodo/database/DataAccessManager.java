@@ -79,7 +79,19 @@ public class DataAccessManager {
 	 * @throws Exception
 	 */
 	public <T> List<T> getElems(final Criteria criteria, final Class<? extends DatabaseEntity> entityType) throws Exception {
-    	return getElems(new CriteriaGroup(Operator.AND, criteria), entityType);
+    	return getElems(criteria, entityType, -1);
+    }
+	
+	/**
+	 * returns a list of the queried entity type, considering a criteria for filtering
+	 * @param criteria the criteria for filtering the main entity
+	 * @param entityType the main entity type to query
+	 * @param fetchDepth - how deep to dig down in the hierarchy level. Pass in -1 to fetch all (sub)elements
+	 * @return
+	 * @throws Exception
+	 */
+	public <T> List<T> getElems(final Criteria criteria, final Class<? extends DatabaseEntity> entityType, final Integer fetchDepth) throws Exception {
+    	return getElems(new CriteriaGroup(Operator.AND, criteria), entityType, fetchDepth);
     }
 	
 	/**
@@ -91,6 +103,18 @@ public class DataAccessManager {
 	 */
 	public <T> List<T> getElems(final CriteriaGroup advancedCriteria, final Class<? extends DatabaseEntity> entityType) throws Exception {
 		return getElems(advancedCriteria, entityType, null, -1);
+	}
+	
+	/**
+	 * returns a list of the queried entity type, considering a criteria for filtering. Fills all sub elements and their children
+	 * @param advancedCriteria the advancedCriteria for filtering the main entity
+	 * @param entityType the main entity type to query
+	 * @param fetchDepth - how deep to dig down in the hierarchy level. Pass in -1 to fetch all (sub)elements
+	 * @return
+	 * @throws Exception
+	 */
+	public <T> List<T> getElems(final CriteriaGroup advancedCriteria, final Class<? extends DatabaseEntity> entityType, final Integer fetchDepth) throws Exception {
+		return getElems(advancedCriteria, entityType, null, fetchDepth);
 	}
 	
 	/**
@@ -131,7 +155,7 @@ public class DataAccessManager {
 		if (sort == null) {
 			throw new Exception("a sort is required in order to use paging!");
 		}
-		final WherePart where = new WherePart(tableName, criteriaGroup);
+		final WherePart where = new WherePart(DB_PRODUCT, tableName, criteriaGroup);
 		String stmt = "SELECT * FROM " + tableName + " WHERE " + where.toString() + sort.toString();
 		final String count = "SELECT COUNT(*) FROM (" + stmt + ")";
 		
@@ -434,7 +458,7 @@ public class DataAccessManager {
 	public void deleteElems(final CriteriaGroup advancedCriteria, final Class<? extends DatabaseEntity> entityType) throws Exception {
 		try {
 			final DatabaseEntity obj = entityType.getConstructor().newInstance();
-			final WherePart whereClause = new WherePart(obj.getTableName(), advancedCriteria);
+			final WherePart whereClause = new WherePart(DB_PRODUCT, obj.getTableName(), advancedCriteria);
 			final String stmt = "SELECT " + obj.getPrimaryKeyColumn() + " FROM " + obj.getTableName() + " WHERE " + whereClause.toString();
 			
 			deleteElemsRecursively(obj, stmt, whereClause.getValues());
@@ -605,7 +629,7 @@ public class DataAccessManager {
 			select.setLength(0);
 			select.append(customSql.selectQuery());
 			if (filter != null && !filter.getCriterias().isEmpty()) {
-				final WherePart wp = new WherePart(null, filter);
+				final WherePart wp = new WherePart(DB_PRODUCT, (String)null, filter);
 				params.addAll(wp.getValues());
 				where.append(" WHERE " + wp.toString());
 			}
@@ -616,7 +640,7 @@ public class DataAccessManager {
 			select.append("SELECT " + getColumnsCsv(entity.getTableName(), entity.getColumnNames(true), false));
 			from.append(" FROM " + entity.getTableName());
 			if (filter != null && !filter.getCriterias().isEmpty()) {
-				final WherePart wp = new WherePart(entity.getTableName(), filter);
+				final WherePart wp = new WherePart(DB_PRODUCT, entity.getTableName(), filter);
 				params.addAll(wp.getValues());
 				where.append(" WHERE " + wp.toString());
 			}

@@ -1,9 +1,7 @@
 package com.segmeno.kodo.database;
 
-import com.segmeno.kodo.transport.Criteria;
-import com.segmeno.kodo.transport.CriteriaGroup;
-import com.segmeno.kodo.transport.Operator;
-
+import java.util.Date;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -13,21 +11,29 @@ import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.segmeno.kodo.transport.Criteria;
+import com.segmeno.kodo.transport.CriteriaGroup;
+import com.segmeno.kodo.transport.Operator;
+
 public class WherePart {
 	
 	private static final Logger log = LogManager.getLogger(WherePart.class);
+	
+	private static final SimpleDateFormat DB_DATETIME_FORMAT = new SimpleDateFormat("YYYY-MM-dd hh:mm:ss");
 	
 	private final Set<Operator> ALLOWED_LIST_OPERATORS = new HashSet<Operator>() {
 		private static final long serialVersionUID = 2809868650704689743L;
 		{
 			add(Operator.IN_SET);
 			add(Operator.NOT_IN_SET);
+			add(Operator.BETWEEN);
 		}
 	};
 	
 	protected final String sql;
 	protected List<Object> params = new ArrayList<>();
 	protected List<String> columnNames = new ArrayList<>();
+	protected final String dbProduct;
 	
 	/**
 	 * 
@@ -36,17 +42,38 @@ public class WherePart {
 	 * @throws Exception
 	 */
 	public WherePart(final String tableAlias, final CriteriaGroup adCrit) throws Exception {
-		this(tableAlias, null, adCrit);
+		this(null, tableAlias, adCrit);
 	}
 	
 	/**
-	 * 
+	 * @param dbProduct - the database vendor
+	 * @param tableAlias - the alias of the table
+	 * @param adCrit - the filter settings to be used
+	 * @throws Exception
+	 */
+	public WherePart(final String dbProduct, final String tableAlias, final CriteriaGroup adCrit) throws Exception {
+		this(dbProduct, tableAlias, null, adCrit);
+	}
+	
+	/**
 	 * @param tableAlias - the alias of the table
 	 * @param columnNames - a list of all existing column names. If this parameter is set, sanity checks will be done while constructing the where part
 	 * @param adCrit - the filter settings to be used
 	 * @throws Exception
 	 */
 	public WherePart(String tableAlias, final List<String> columnNames, CriteriaGroup adCrit) throws Exception {
+		this(null, tableAlias, columnNames, adCrit);
+	}
+
+	/**
+	 * @param dbProduct - the database vendor
+	 * @param tableAlias - the alias of the table
+	 * @param columnNames - a list of all existing column names. If this parameter is set, sanity checks will be done while constructing the where part
+	 * @param adCrit - the filter settings to be used
+	 * @throws Exception
+	 */
+	public WherePart(final String dbProduct, String tableAlias, final List<String> columnNames, CriteriaGroup adCrit) throws Exception {
+		this.dbProduct = dbProduct;
 		if (columnNames != null) {
 			this.columnNames = columnNames.stream().map(col -> col.toUpperCase()).collect(Collectors.toList());
 		}
@@ -161,6 +188,9 @@ public class WherePart {
 						break;
 					case NOT_IN_SET:
 						sb.append(notInSet(tableAlias, crit));
+						break;
+					case BETWEEN:
+						sb.append(between(tableAlias,crit));
 						break;
 					default:
 						throw new Exception("unsupported OperatorId " + crit.getOperator() + "! Please extend this class: " + this.getClass());
@@ -349,6 +379,23 @@ public class WherePart {
 		return tableAlias + criteria.getFieldName() + " NOT IN (" + csv + ")";
 	}
 	
+	protected String between(String tableAlias, Criteria criteria) throws Exception {
+		validateCriteria(criteria);
+		if (criteria.getListValues().size() != 2) {
+			throw new Exception("Expected exactly two list values to use the BETWEEN operator!");
+		}
+		final Class<?> type = determineListType(criteria.getListValues());
+		if (Number.class.isAssignableFrom(type)) {
+			return tableAlias + criteria.getFieldName() + " BETWEEN " + criteria.getListValues().get(0) + " AND " + criteria.getListValues().get(1);
+		}
+		if (Date.class.isAssignableFrom(type)) {
+			return tableAlias + criteria.getFieldName() + " BETWEEN '" + DB_DATETIME_FORMAT.format(criteria.getListValues().get(0)) + 
+															"' AND '" + DB_DATETIME_FORMAT.format(criteria.getListValues().get(1)) + "'";
+		}
+		return tableAlias + criteria.getFieldName() + " BETWEEN '" + criteria.getListValues().get(0) + "' AND '" + criteria.getListValues().get(1) + "'";
+	}
+
+	
 	public boolean isEmpty() {
 		return sql.length() == 0;
 	}
@@ -389,5 +436,6 @@ public class WherePart {
 		}
 		return null;
 	}
+	
 }
 
