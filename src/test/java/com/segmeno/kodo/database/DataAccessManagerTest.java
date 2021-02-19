@@ -99,6 +99,17 @@ public class DataAccessManagerTest {
 		List<TestUser> users = manager.getElems(c, TestUser.class, 0);
 		assertTrue(users.size() == 1);
 		assertTrue(users.get(0).name.equals("Tom"));
+		
+		String fromStr = "2019-01-01";
+		String fromTo = "2020-05-05";
+		List<String> dateStrs = new ArrayList<>();
+		dateStrs.add(fromStr);
+		dateStrs.add(fromTo);
+		c = new Criteria("createdAt", Operator.BETWEEN, dateStrs);
+		users = manager.getElems(c, TestUser.class, 0);
+		assertTrue(users.size() == 1);
+		assertTrue(users.get(0).name.equals("Tom"));
+		
 	}
 
 	@Test
