@@ -1,5 +1,15 @@
 package com.segmeno.kodo.database;
 
+import com.segmeno.kodo.annotation.Column;
+import com.segmeno.kodo.annotation.CustomSql;
+import com.segmeno.kodo.annotation.MappingRelation;
+import com.segmeno.kodo.transport.Criteria;
+import com.segmeno.kodo.transport.CriteriaGroup;
+import com.segmeno.kodo.transport.IKodoEnum;
+import com.segmeno.kodo.transport.Operator;
+import com.segmeno.kodo.transport.Sort;
+import com.segmeno.kodo.transport.Sort.SortDirection;
+
 import java.lang.reflect.Field;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
@@ -23,15 +33,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.core.simple.SimpleJdbcInsert;
-
-import com.segmeno.kodo.annotation.Column;
-import com.segmeno.kodo.annotation.CustomSql;
-import com.segmeno.kodo.annotation.MappingRelation;
-import com.segmeno.kodo.transport.Criteria;
-import com.segmeno.kodo.transport.CriteriaGroup;
-import com.segmeno.kodo.transport.Operator;
-import com.segmeno.kodo.transport.Sort;
-import com.segmeno.kodo.transport.Sort.SortDirection;
 
 public class DataAccessManager {
 
@@ -497,10 +498,10 @@ public class DataAccessManager {
 		//final String query = "DELETE FROM " + entity.getTableName() + " WHERE " + entity.getPrimaryKeyColumn() + " IN (" + stmt + ")";
 		final List<Long> idsToDelete = jdbcTemplate.query(stmt, new RowMapper<Long>() {
 			@Override
-			public Long mapRow(ResultSet rs, int rowNum) throws SQLException {
+			public Long mapRow(final ResultSet rs, final int rowNum) throws SQLException {
 				try {
 					return rs.getLong(entity.getPrimaryKeyColumn());
-				} catch (Exception e) {
+				} catch (final Exception e) {
 					log.warn("could not retrieve ids of elements to delete", e);
 				}
 				return -1L;
@@ -747,6 +748,13 @@ public class DataAccessManager {
     		}
     		if (Float.class.isAssignableFrom(type)) {
     			return ((Number)obj).floatValue();
+    		}
+    	}
+    	if (IKodoEnum.class.isAssignableFrom(type) && obj instanceof String) {
+    		for(final Enum constant : ((Class<Enum>) type).getEnumConstants()) {
+    			if(((IKodoEnum) constant).getValue().equals(obj)) {
+    				return constant;
+    			}
     		}
     	}
     	if (String.class.isAssignableFrom(type)) {

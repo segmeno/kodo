@@ -1,6 +1,6 @@
 package com.segmeno.kodo.transport;
 
-public enum Operator {
+public enum Operator implements IKodoEnum {
 	/**
 	 * expression must match perfectly
 	 */
@@ -78,11 +78,12 @@ public enum Operator {
     BETWEEN_INCLUSIVE("betweenInclusive");
     private String value;
 
-    Operator(String value) {
+    Operator(final String value) {
         this.value = value;
     }
 
-    public String getValue() {
+    @Override
+	public String getValue() {
         return this.value;
     }
 }
