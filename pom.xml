@@ -42,7 +42,13 @@
 		<developer>
 			<name>Thorsten Drude</name>
 			<email>thorsten.drude@segmeno.de</email>
-			<organization>segmeno</organization>
+			<organization>segmeno software GmbH</organization>
+			<organizationUrl>http://www.segmeno.com</organizationUrl>
+		</developer>
+		<developer>
+			<name>Christian Hübert</name>
+			<email>christian.huebert@segmeno.de</email>
+			<organization>segmeno software GmbH</organization>
 			<organizationUrl>http://www.segmeno.com</organizationUrl>
 		</developer>
 	</developers>
@@ -53,6 +59,11 @@
 			<artifactId>log4j</artifactId>
 			<version>1.2.17</version>
 			<scope>test</scope>
+		</dependency>
+		<dependency>
+		    <groupId>com.fasterxml.jackson.core</groupId>
+		    <artifactId>jackson-annotations</artifactId>
+		    <version>2.12.2</version>
 		</dependency>
 		<dependency>
 		    <groupId>org.apache.logging.log4j</groupId>
