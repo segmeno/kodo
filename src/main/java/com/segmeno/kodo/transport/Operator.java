@@ -86,4 +86,13 @@ public enum Operator implements IKodoEnum {
 	public String getValue() {
         return this.value;
     }
+
+    public static Operator resolve(final String value) throws Exception {
+      for(final Operator o : Operator.values()) {
+        if(o.getValue().equals(value)) {
+           return o;
+        }
+      }
+      throw new Exception("value '" + value + "' is unknown to enum " + Operator.class.getName());
+    }
 }
