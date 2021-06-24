@@ -17,17 +17,18 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public abstract class DatabaseEntity {
-	
+
 	private static final Logger LOGGER = LogManager.getLogger(DatabaseEntity.class);
 
 	// to be used within kodo framework only
 	@SuppressWarnings("unused")
 	private String tableAlias;
-	private Field primaryKey;
-	
+	private final Field primaryKey;
+
 	final transient List<Field> fields = new ArrayList<Field>();
-	
+
 	public DatabaseEntity() {
+	    Field pk = null;
 		Class clazz = this.getClass();
 		while(clazz != null && !DatabaseEntity.class.equals(clazz)) {
 			for (final Field field : clazz.getDeclaredFields()) {
@@ -35,23 +36,30 @@ public abstract class DatabaseEntity {
 				if (field.getAnnotation(DbIgnore.class) != null) {
 					continue;
 				}
-				if (field.getAnnotation(PrimaryKey.class) != null) {
-					primaryKey = field;
+				// do not overwrite once found pk, with that from a base class
+				if (pk == null && field.getAnnotation(PrimaryKey.class) != null) {
+					pk = field;
 				}
 				fields.add(field);
 			}
 			clazz = clazz.getSuperclass();
 		}
+
+		if(pk == null) {
+		  throw new RuntimeException(this.getClass().getName() + " has not @PrimaryKey defined");
+		}
+
+		primaryKey = pk;
 	}
-	
+
 	/**
-	 * 
+	 *
 	 * @return the tableName of this entity
 	 */
 	public abstract String getTableName();
-	
+
 	/**
-	 * 
+	 *
 	 * @return the column names of this entity
 	 */
 	public List<String> getColumnNames(final boolean includePrimaryKeyColumn) throws Exception {
@@ -72,11 +80,11 @@ public abstract class DatabaseEntity {
 		}
 		return cols;
 	};
-	
+
 	/**
 	 * * retrieves all fields which should be persisted in the db when saving the inheriting object
 	 * @return a map presentation of the object
-	 * @throws Exception 
+	 * @throws Exception
 	 */
 	public Map<String, Object> toMap() throws Exception {
 		final Map<String,Object> map = new HashMap<String,Object>();
@@ -106,9 +114,9 @@ public abstract class DatabaseEntity {
 		}
 		return map;
 	}
-	
+
 	/**
-	 * 
+	 *
 	 * @return the primary key column name
 	 * @throws Exception
 	 */
@@ -124,7 +132,7 @@ public abstract class DatabaseEntity {
 	 * @param map all values to the corresponding field names
 	 */
 	public void fromMap(final Map<String, Object> map) throws Exception {
-		
+
 		for (final Field f: fields) {
 			f.setAccessible(true);
 			if (map.get(f.getName()) != null) {
@@ -132,27 +140,27 @@ public abstract class DatabaseEntity {
 			}
 		}
 	}
-	
+
 	/**
 	 * sets the primary key field
-	 * 
+	 *
 	 * @param id
 	 * @throws Exception
 	 */
 	public void setPrimaryKeyValue(final Object id) throws Exception {
 		if (primaryKey == null) {
-			throw new Exception("Could not find primary key for entity '" + this.getClass().getName() +"'. Please use the '@PrimaryKey' annotation to mark a field as PrimaryKey!");			
+			throw new Exception("Could not find primary key for entity '" + this.getClass().getName() +"'. Please use the '@PrimaryKey' annotation to mark a field as PrimaryKey!");
 		}
 		primaryKey.set(this, DataAccessManager.convertTo(primaryKey.getType(), id));
 	}
-	
+
 	/**
 	 * returns the value of the primary key field
-	 * 
+	 *
 	 * @return
 	 */
 	public Object getPrimaryKeyValue() {
-		
+
 		if (primaryKey == null) {
 			final String msg = "Could not find primary key for entity '" + this.getClass().getName() +"'. Please use the '@PrimaryKey' annotation to mark a field as PrimaryKey!";
 			LOGGER.error(msg);
@@ -166,10 +174,10 @@ public abstract class DatabaseEntity {
 			throw new RuntimeException(msg);
 		}
 	}
-	
+
 	/**
 	 * convenience method to access map values which are integers
-	 * 
+	 *
 	 * @param map
 	 * @param key
 	 * @return
@@ -180,10 +188,10 @@ public abstract class DatabaseEntity {
 		}
 		return Integer.valueOf(String.valueOf(map.get(key)));
 	}
-	
+
 	/**
 	 * convenience method to access map values which are booleans
-	 * 
+	 *
 	 * @param map
 	 * @param key
 	 * @return
@@ -194,10 +202,10 @@ public abstract class DatabaseEntity {
 		}
 		return Boolean.valueOf(String.valueOf(map.get(key)));
 	}
-	
+
 	/**
 	 * convenience method to access map values which are strings
-	 * 
+	 *
 	 * @param map
 	 * @param key
 	 * @return
@@ -211,10 +219,10 @@ public abstract class DatabaseEntity {
 		}
 		return null;
 	}
-	
+
 	/**
 	 * convenience method to access map values which are dates
-	 * 
+	 *
 	 * @param map
 	 * @param key
 	 * @return
