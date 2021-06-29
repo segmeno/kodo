@@ -1,6 +1,9 @@
 package com.segmeno.kodo.database;
 
-import java.util.Date;
+import com.segmeno.kodo.transport.Criteria;
+import com.segmeno.kodo.transport.CriteriaGroup;
+import com.segmeno.kodo.transport.Operator;
+
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -11,16 +14,12 @@ import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.segmeno.kodo.transport.Criteria;
-import com.segmeno.kodo.transport.CriteriaGroup;
-import com.segmeno.kodo.transport.Operator;
-
 public class WherePart {
-	
+
 	private static final Logger log = LogManager.getLogger(WherePart.class);
-	
+
 	private static final SimpleDateFormat DB_DATETIME_FORMAT = new SimpleDateFormat("YYYY-MM-dd hh:mm:ss");
-	
+
 	private final Set<Operator> ALLOWED_LIST_OPERATORS = new HashSet<Operator>() {
 		private static final long serialVersionUID = 2809868650704689743L;
 		{
@@ -29,14 +28,14 @@ public class WherePart {
 			add(Operator.BETWEEN);
 		}
 	};
-	
+
 	protected final String sql;
 	protected List<Object> params = new ArrayList<>();
 	protected List<String> columnNames = new ArrayList<>();
 	protected final String dbProduct;
-	
+
 	/**
-	 * 
+	 *
 	 * @param tableAlias - the alias of the table
 	 * @param adCrit - the filter settings to be used
 	 * @throws Exception
@@ -44,7 +43,7 @@ public class WherePart {
 	public WherePart(final String tableAlias, final CriteriaGroup adCrit) throws Exception {
 		this(null, tableAlias, adCrit);
 	}
-	
+
 	/**
 	 * @param dbProduct - the database vendor
 	 * @param tableAlias - the alias of the table
@@ -54,14 +53,14 @@ public class WherePart {
 	public WherePart(final String dbProduct, final String tableAlias, final CriteriaGroup adCrit) throws Exception {
 		this(dbProduct, tableAlias, null, adCrit);
 	}
-	
+
 	/**
 	 * @param tableAlias - the alias of the table
 	 * @param columnNames - a list of all existing column names. If this parameter is set, sanity checks will be done while constructing the where part
 	 * @param adCrit - the filter settings to be used
 	 * @throws Exception
 	 */
-	public WherePart(String tableAlias, final List<String> columnNames, CriteriaGroup adCrit) throws Exception {
+	public WherePart(final String tableAlias, final List<String> columnNames, final CriteriaGroup adCrit) throws Exception {
 		this(null, tableAlias, columnNames, adCrit);
 	}
 
@@ -77,13 +76,13 @@ public class WherePart {
 		if (columnNames != null) {
 			this.columnNames = columnNames.stream().map(col -> col.toUpperCase()).collect(Collectors.toList());
 		}
-		
+
 		tableAlias = tableAlias != null ? tableAlias + "." : "";
-		
+
 		if (adCrit == null) {
 			adCrit = new CriteriaGroup();
 		}
-		
+
 		final String tmp = addCriterias(tableAlias, adCrit);
 		sql = tmp != null && tmp.length() > 2 ? tmp : "(1 = 1)";
 	}
@@ -93,12 +92,12 @@ public class WherePart {
 		final StringBuilder sb = new StringBuilder(1024);
 		if (crits.size() > 0) {
 			sb.append("(");
-			
+
 			for (final Criteria crit : crits) {
 				if (crit == null) {
 					continue;
 				}
-				
+
 				if(crit.getCriteriaGroup() != null) {
 					final String tmp = addCriterias(tableAlias, crit.getCriteriaGroup());
 					if(tmp == null || tmp.length() < 3) {
@@ -106,7 +105,7 @@ public class WherePart {
 					}
 					sb.append(tmp);
 				} else {
-				
+
 					// first check if the column name is really existing
 					if (!this.columnNames.isEmpty()) {
 						if (crit.getFieldName() != null && !this.columnNames.contains(crit.getFieldName().toUpperCase())) {
@@ -115,7 +114,7 @@ public class WherePart {
 							throw new Exception(s);
 						}
 					}
-					
+
 					switch (crit.getOperator()) {
 					case CONTAINS:
 						sb.append(contains(tableAlias, crit));
@@ -194,50 +193,50 @@ public class WherePart {
 						break;
 					default:
 						throw new Exception("unsupported OperatorId " + crit.getOperator() + "! Please extend this class: " + this.getClass());
-					}					
+					}
 				}
 				sb.append(' ').append(cg.getOperator().getValue()).append(' ');
 			}
-			
+
 			if (sb.length() > 1) {
 				sb.setLength(sb.length() - (cg.getOperator().getValue().length() + 2));	// remove last ' OperatorId '
 			}
 			sb.append(")");
 		}
-		
+
 		if(log.isDebugEnabled()) {
 			log.debug("parsed " + cg + " to " + sb);
 		}
 		return sb.toString();
 	}
-	
+
 	protected String contains(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
 		final Object param = criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue();
 		params.add("%" + param + "%");
 		return tableAlias + criteria.getFieldName() + " LIKE ?";
 	}
-	
+
 	protected String icontains(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
 		final Object param = criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue();
 		params.add("%" + param + "%");
 		return "LOWER(" + tableAlias + criteria.getFieldName() + ") LIKE LOWER(?)";
 	}
-	
+
 	protected String notContains(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
 		final Object param = criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue();
 		params.add("%" + param + "%");
 		return tableAlias + criteria.getFieldName() + " NOT LIKE ?";
 	}
-	
+
 	protected String equals(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
 		params.add(criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue());
 		return tableAlias + criteria.getFieldName() + " = ?";
 	}
-	
+
 	protected String iequals(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
 		if (criteria.getStringValue() != null) {
@@ -249,13 +248,13 @@ public class WherePart {
 			return tableAlias + criteria.getFieldName() + " LIKE ?";
 		}
 	}
-	
+
 	protected String not_equals(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
 		params.add(criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue());
 		return tableAlias + criteria.getFieldName() + " <> ?";
 	}
-	
+
 	protected String inot_equals(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
 		if (criteria.getStringValue() != null) {
@@ -267,135 +266,120 @@ public class WherePart {
 			return tableAlias + criteria.getFieldName() + " NOT LIKE ?";
 		}
 	}
-	
+
 	protected String greaterOrEqual(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
 		params.add(criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue());
 		return tableAlias + criteria.getFieldName() + " >= ?";
 	}
-	
+
 	protected String greaterThan(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
 		params.add(criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue());
 		return tableAlias + criteria.getFieldName() + " > ?";
 	}
-	
+
 	protected String lessOrEqual(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
 		params.add(criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue());
 		return tableAlias + criteria.getFieldName() + " <= ?";
 	}
-	
+
 	protected String lessThan(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
 		params.add(criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue());
 		return tableAlias + criteria.getFieldName() + " < ?";
 	}
-	
+
 	protected String startsWith(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
 		final Object param = criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue();
 		params.add(param + "%");
 		return tableAlias + criteria.getFieldName() + " LIKE ?";
 	}
-	
+
 	protected String istartsWith(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
 		final Object param = criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue();
 		params.add(param + "%");
 		return "LOWER(" + tableAlias + criteria.getFieldName() + ") LIKE LOWER(?)";
 	}
-	
+
 	protected String inotStartsWith(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
 		final Object param = criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue();
 		params.add(param + "%");
 		return "LOWER(" + tableAlias + criteria.getFieldName() + ") NOT LIKE LOWER(?)";
 	}
-	
+
 	protected String endsWith(final String tableAlias, final Criteria criteria) {
 		final Object param = criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue();
 		params.add("%" + param);
 		return tableAlias + criteria.getFieldName() + " LIKE ?";
 	}
-	
+
 	protected String iendsWith(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
 		final Object param = criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue();
 		params.add("%" + param);
 		return "LOWER(" + tableAlias + criteria.getFieldName() + ") LIKE LOWER(?)";
 	}
-	
+
 	protected String inotEndsWith(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
 		final Object param = criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue();
 		params.add("%" + param);
 		return "LOWER(" + tableAlias + criteria.getFieldName() + ") NOT LIKE LOWER(?)";
 	}
-	
+
 	protected String isBlank(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
 		return "(" + tableAlias + criteria.getFieldName() + " = '' OR " + tableAlias + criteria.getFieldName() + " IS NULL)";
 	}
-	
+
 	protected String notBlank(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
 		return "(" + tableAlias + criteria.getFieldName() + " != '' AND " + tableAlias + criteria.getFieldName() + " IS NOT NULL)";
 	}
-	
+
 	protected String notNull(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
 		return tableAlias + criteria.getFieldName() + " IS NOT NULL";
 	}
-	
+
 	protected String isNull(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
 		return tableAlias + criteria.getFieldName() + " IS NULL";
 	}
-	
+
 	protected String inSet(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
 		final Class<?> type = determineListType(criteria.getListValues());
-		final String csv;
-		if (Number.class.isAssignableFrom(type)) {
-			csv = criteria.getListValues().stream().map(val -> String.valueOf(val)).collect(Collectors.joining(","));
-		}
-		else {
-			csv = criteria.getListValues().stream().map(val -> "'" + String.valueOf(val) + "'").collect(Collectors.joining(","));
-		}
+        params.addAll(criteria.getListValues());
+        final String csv = criteria.getListValues().stream().map(val -> "?").collect(Collectors.joining(","));
 		return tableAlias + criteria.getFieldName() + " IN (" + csv + ")";
 	}
-	
+
 	protected String notInSet(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
 		final Class<?> type = determineListType(criteria.getListValues());
-		final String csv;
-		if (Number.class.isAssignableFrom(type)) {
-			csv = criteria.getListValues().stream().map(val -> String.valueOf(val)).collect(Collectors.joining(","));
-		}
-		else {
-			csv = criteria.getListValues().stream().map(val -> "'" + String.valueOf(val) + "'").collect(Collectors.joining(","));
-		}
+        params.addAll(criteria.getListValues());
+        final String csv = criteria.getListValues().stream().map(val -> "?").collect(Collectors.joining(","));
 		return tableAlias + criteria.getFieldName() + " NOT IN (" + csv + ")";
 	}
-	
-	protected String between(String tableAlias, Criteria criteria) throws Exception {
+
+	protected String between(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
 		if (criteria.getListValues().size() != 2) {
 			throw new Exception("Expected exactly two list values to use the BETWEEN operator!");
 		}
 		final Class<?> type = determineListType(criteria.getListValues());
-		if (Number.class.isAssignableFrom(type)) {
-			return tableAlias + criteria.getFieldName() + " BETWEEN " + criteria.getListValues().get(0) + " AND " + criteria.getListValues().get(1);
-		}
-		if (Date.class.isAssignableFrom(type)) {
-			return tableAlias + criteria.getFieldName() + " BETWEEN '" + DB_DATETIME_FORMAT.format(criteria.getListValues().get(0)) + 
-															"' AND '" + DB_DATETIME_FORMAT.format(criteria.getListValues().get(1)) + "'";
-		}
-		return tableAlias + criteria.getFieldName() + " BETWEEN '" + criteria.getListValues().get(0) + "' AND '" + criteria.getListValues().get(1) + "'";
+		params.add(criteria.getListValues().get(0));
+        params.add(criteria.getListValues().get(1));
+        return tableAlias + criteria.getFieldName() + " BETWEEN ? AND ?";
 	}
 
-	
+
 	public boolean isEmpty() {
 		return sql.length() == 0;
 	}
@@ -404,13 +388,13 @@ public class WherePart {
 	public String toString() {
 		return sql;
 	}
-	
+
 	public List<Object> getValues() {
 		return params;
 	}
-	
+
 	/**
-	 * checks if the combination of Operator and value type is correct 
+	 * checks if the combination of Operator and value type is correct
 	 * @param criteria
 	 * @throws Exception
 	 */
@@ -428,7 +412,7 @@ public class WherePart {
 			throw new Exception(msg);
 		}
 	}
-	
+
 	private Class determineListType(final List<?> list) {
 		if (list != null && list.size() > 0) {
 			final Object o = list.get(0);
@@ -436,6 +420,6 @@ public class WherePart {
 		}
 		return null;
 	}
-	
+
 }
 
