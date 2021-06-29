@@ -6,6 +6,7 @@ import com.segmeno.kodo.transport.Operator;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -212,28 +213,28 @@ public class WherePart {
 
 	protected String contains(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
-		final Object param = criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue();
+		final Object param = getValueAsStr(criteria);
 		params.add("%" + param + "%");
 		return tableAlias + criteria.getFieldName() + " LIKE ?";
 	}
 
 	protected String icontains(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
-		final Object param = criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue();
+		final Object param = getValueAsStr(criteria);
 		params.add("%" + param + "%");
 		return "LOWER(" + tableAlias + criteria.getFieldName() + ") LIKE LOWER(?)";
 	}
 
 	protected String notContains(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
-		final Object param = criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue();
+		final Object param = getValueAsStr(criteria);
 		params.add("%" + param + "%");
 		return tableAlias + criteria.getFieldName() + " NOT LIKE ?";
 	}
 
 	protected String equals(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
-		params.add(criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue());
+		params.add(getValue(criteria));
 		return tableAlias + criteria.getFieldName() + " = ?";
 	}
 
@@ -244,14 +245,14 @@ public class WherePart {
 			return "LOWER(" + tableAlias + criteria.getFieldName() + ") LIKE LOWER(?)";
 		}
 		else {
-			params.add(criteria.getNumberValue());
+			params.add(getValue(criteria));
 			return tableAlias + criteria.getFieldName() + " LIKE ?";
 		}
 	}
 
 	protected String not_equals(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
-		params.add(criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue());
+		params.add(getValue(criteria));
 		return tableAlias + criteria.getFieldName() + " <> ?";
 	}
 
@@ -262,75 +263,93 @@ public class WherePart {
 			return "LOWER(" + tableAlias + criteria.getFieldName() + ") NOT LIKE LOWER(?)";
 		}
 		else {
-			params.add(criteria.getNumberValue());
+			params.add(getValue(criteria));
 			return tableAlias + criteria.getFieldName() + " NOT LIKE ?";
 		}
 	}
 
 	protected String greaterOrEqual(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
-		params.add(criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue());
+		params.add(getValue(criteria));
 		return tableAlias + criteria.getFieldName() + " >= ?";
 	}
 
 	protected String greaterThan(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
-		params.add(criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue());
+		params.add(getValue(criteria));
 		return tableAlias + criteria.getFieldName() + " > ?";
 	}
 
 	protected String lessOrEqual(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
-		params.add(criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue());
+		params.add(getValue(criteria));
 		return tableAlias + criteria.getFieldName() + " <= ?";
 	}
 
 	protected String lessThan(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
-		params.add(criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue());
+		params.add(getValue(criteria));
 		return tableAlias + criteria.getFieldName() + " < ?";
 	}
 
 	protected String startsWith(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
-		final Object param = criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue();
+		final Object param = getValueAsStr(criteria);
 		params.add(param + "%");
 		return tableAlias + criteria.getFieldName() + " LIKE ?";
 	}
 
 	protected String istartsWith(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
-		final Object param = criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue();
+		final Object param = getValueAsStr(criteria);
 		params.add(param + "%");
 		return "LOWER(" + tableAlias + criteria.getFieldName() + ") LIKE LOWER(?)";
 	}
 
 	protected String inotStartsWith(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
-		final Object param = criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue();
+		final Object param = getValueAsStr(criteria);
 		params.add(param + "%");
 		return "LOWER(" + tableAlias + criteria.getFieldName() + ") NOT LIKE LOWER(?)";
 	}
 
 	protected String endsWith(final String tableAlias, final Criteria criteria) {
-		final Object param = criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue();
+		final Object param = getValueAsStr(criteria);
 		params.add("%" + param);
 		return tableAlias + criteria.getFieldName() + " LIKE ?";
 	}
 
 	protected String iendsWith(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
-		final Object param = criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue();
+		final Object param = getValueAsStr(criteria);
 		params.add("%" + param);
 		return "LOWER(" + tableAlias + criteria.getFieldName() + ") LIKE LOWER(?)";
 	}
 
 	protected String inotEndsWith(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
-		final Object param = criteria.getStringValue() != null ? criteria.getStringValue() : criteria.getNumberValue();
+		final Object param = getValueAsStr(criteria);
 		params.add("%" + param);
 		return "LOWER(" + tableAlias + criteria.getFieldName() + ") NOT LIKE LOWER(?)";
 	}
+
+	private String getValueAsStr(final Criteria criteria) {
+	    final Object str = getValue(criteria);
+	    if(str == null) {
+	      return null;
+	    }
+	    if(str instanceof Date) {
+          return DB_DATETIME_FORMAT.format((Date) str);
+        }
+	    if(str instanceof String) {
+	      return (String) str;
+	    }
+	    return String.valueOf(str);
+	}
+
+    private Object getValue(final Criteria criteria) {
+        return criteria.getStringValue() != null ? criteria.getStringValue() : (criteria.getNumberValue() != null ? criteria.getNumberValue() : criteria.getDateValue());
+    }
 
 	protected String isBlank(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);

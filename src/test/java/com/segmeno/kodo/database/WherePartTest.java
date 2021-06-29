@@ -58,4 +58,25 @@ public class WherePartTest {
         assertTrue(w.getValues().containsAll(dates));
     }
 
+    @Test
+    public void complexHierachyTest() throws Exception {
+        final Date dateValue = new Date();
+        final Integer intValue = Integer.valueOf(666);
+        final String strValue = "foobar";
+
+        final CriteriaGroup cgroot = new CriteriaGroup(Operator.AND);
+        cgroot.add(new Criteria("Date", Operator.EQUALS, dateValue));
+        final CriteriaGroup cgchild = new CriteriaGroup(Operator.OR);
+        cgchild.add(new Criteria("Int", Operator.EQUALS, intValue));
+        cgchild.add(new Criteria("Str", Operator.EQUALS, strValue));
+        cgroot.add(new Criteria(cgchild));
+
+        final WherePart w = new WherePart("testtable", cgroot);
+        assertTrue(w.toString().equals("(testtable.Date = ? and (testtable.Int = ? or testtable.Str = ?))"));
+        assertTrue(w.getValues().size() == 3);
+        assertTrue(w.getValues().get(0).equals(dateValue));
+        assertTrue(w.getValues().get(1).equals(intValue));
+        assertTrue(w.getValues().get(2).equals(strValue));
+    }
+
 }
