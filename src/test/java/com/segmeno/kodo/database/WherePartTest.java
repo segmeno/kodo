@@ -1,6 +1,6 @@
 package com.segmeno.kodo.database;
 
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.segmeno.kodo.transport.Criteria;
 import com.segmeno.kodo.transport.CriteriaGroup;
@@ -10,7 +10,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class WherePartTest {
 
