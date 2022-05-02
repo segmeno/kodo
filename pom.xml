@@ -4,7 +4,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>com.segmeno</groupId>
 	<artifactId>kodo</artifactId>
-	<version>1.2.10-SNAPSHOT</version>
+	<version>1.2.10-RELEASE</version>
 
 	<name>com.segmeno.kodo</name>
 	<description>A Database Access Layer which can be easily embedded in any Java Backend Code</description>
@@ -22,10 +22,10 @@
 			<url>https://github.com/segmeno/kodo/wiki</url>
 		</site>
 		<snapshotRepository>
-			<id>maven-snapshots</id>
-			<url>http://ac1vmps-cis01.devacu.ascom-sus.local:8082/repository/maven-snapshots/</url>
-			<!--id>ossrh</id>
-			<url>https://oss.sonatype.org/content/repositories/snapshots</url-->
+			<!--id>maven-snapshots</id>
+			<url>http://ac1vmps-cis01.devacu.ascom-sus.local:8082/repository/maven-snapshots/</url-->
+			<id>ossrh</id>
+			<url>https://oss.sonatype.org/content/repositories/snapshots</url>
 		</snapshotRepository>
 		<repository>
 			<id>ossrh</id>
