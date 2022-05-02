@@ -47,6 +47,21 @@ public class Criteria {
         this.dateValue = dateValue;
 		this.setListValues(listValues);
 	}
+	
+	public Criteria(Criteria toCopy) {
+		if(toCopy == null) {
+			throw new RuntimeException("toCopy cannot be null!");
+		}
+		
+		this.fieldName = toCopy.fieldName;
+		this.operator = toCopy.operator;
+		this.stringValue = toCopy.stringValue;
+		this.numberValue = toCopy.numberValue;
+        this.dateValue = toCopy.dateValue;
+		this.setListValues(new ArrayList(toCopy.listValues));
+
+		this.criteriaGroup = toCopy.criteriaGroup == null ? null : new CriteriaGroup(toCopy.criteriaGroup);
+	}
 
 	public CriteriaGroup getCriteriaGroup() {
 		return criteriaGroup;

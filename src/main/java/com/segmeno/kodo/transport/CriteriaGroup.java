@@ -5,8 +5,8 @@ import java.util.List;
 
 
 public class CriteriaGroup {
-	private  Operator operator = Operator.AND;
-	private final List<Criteria> criterias = new ArrayList<Criteria>();
+	private Operator operator = Operator.AND;
+	private final ArrayList<Criteria> criterias = new ArrayList<Criteria>();
 	
 	public CriteriaGroup(final Operator operator, final List<Criteria> criterias) {
 		this.operator = operator;
@@ -20,6 +20,21 @@ public class CriteriaGroup {
 	
 	public CriteriaGroup(final Operator operator) {
 		this.operator = operator;
+	}
+	
+	public CriteriaGroup(CriteriaGroup toCopy) {
+		if(toCopy == null) {
+			throw new RuntimeException("toCopy cannot be null!");
+		}
+		this.operator = toCopy.operator;
+		this.criterias.ensureCapacity(toCopy.criterias.size());
+		for(final Criteria c : toCopy.criterias) {
+			if(c == null) {
+				this.criterias.add(null);
+			} else {
+				this.criterias.add(new Criteria(c));
+			}
+		}
 	}
 	
 	public CriteriaGroup() {
