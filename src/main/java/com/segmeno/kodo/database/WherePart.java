@@ -27,6 +27,9 @@ public class WherePart {
 			add(Operator.IN_SET);
 			add(Operator.NOT_IN_SET);
 			add(Operator.BETWEEN);
+			add(Operator.IBETWEEN);
+			add(Operator.BETWEEN_INCLUSIVE);
+			add(Operator.IBETWEEN_INCLUSIVE);
 		}
 	};
 
@@ -38,7 +41,7 @@ public class WherePart {
 	/**
 	 *
 	 * @param tableAlias - the alias of the table
-	 * @param adCrit - the filter settings to be used
+	 * @param adCrit     - the filter settings to be used
 	 * @throws Exception
 	 */
 	public WherePart(final String tableAlias, final CriteriaGroup adCrit) throws Exception {
@@ -46,9 +49,9 @@ public class WherePart {
 	}
 
 	/**
-	 * @param dbProduct - the database vendor
+	 * @param dbProduct  - the database vendor
 	 * @param tableAlias - the alias of the table
-	 * @param adCrit - the filter settings to be used
+	 * @param adCrit     - the filter settings to be used
 	 * @throws Exception
 	 */
 	public WherePart(final String dbProduct, final String tableAlias, final CriteriaGroup adCrit) throws Exception {
@@ -56,9 +59,11 @@ public class WherePart {
 	}
 
 	/**
-	 * @param tableAlias - the alias of the table
-	 * @param columnNames - a list of all existing column names. If this parameter is set, sanity checks will be done while constructing the where part
-	 * @param adCrit - the filter settings to be used
+	 * @param tableAlias  - the alias of the table
+	 * @param columnNames - a list of all existing column names. If this parameter
+	 *                    is set, sanity checks will be done while constructing the
+	 *                    where part
+	 * @param adCrit      - the filter settings to be used
 	 * @throws Exception
 	 */
 	public WherePart(final String tableAlias, final List<String> columnNames, final CriteriaGroup adCrit) throws Exception {
@@ -66,10 +71,12 @@ public class WherePart {
 	}
 
 	/**
-	 * @param dbProduct - the database vendor
-	 * @param tableAlias - the alias of the table
-	 * @param columnNames - a list of all existing column names. If this parameter is set, sanity checks will be done while constructing the where part
-	 * @param adCrit - the filter settings to be used
+	 * @param dbProduct   - the database vendor
+	 * @param tableAlias  - the alias of the table
+	 * @param columnNames - a list of all existing column names. If this parameter
+	 *                    is set, sanity checks will be done while constructing the
+	 *                    where part
+	 * @param adCrit      - the filter settings to be used
 	 * @throws Exception
 	 */
 	public WherePart(final String dbProduct, String tableAlias, final List<String> columnNames, CriteriaGroup adCrit) throws Exception {
@@ -99,9 +106,9 @@ public class WherePart {
 					continue;
 				}
 
-				if(crit.getCriteriaGroup() != null) {
+				if (crit.getCriteriaGroup() != null) {
 					final String tmp = addCriterias(tableAlias, crit.getCriteriaGroup());
-					if(tmp == null || tmp.length() < 3) {
+					if (tmp == null || tmp.length() < 3) {
 						continue;
 					}
 					sb.append(tmp);
@@ -110,105 +117,121 @@ public class WherePart {
 					// first check if the column name is really existing
 					if (!this.columnNames.isEmpty()) {
 						if (crit.getFieldName() != null && !this.columnNames.contains(crit.getFieldName().toUpperCase())) {
-							final String s = "Check your filter settings: Column with Name '" + crit.getFieldName() + "' used in criteria, but not existing in table " + tableAlias;
+							final String s = "Check your filter settings: Column with Name '" + crit.getFieldName()
+									+ "' used in criteria, but not existing in table " + tableAlias;
 							log.error(s);
 							throw new Exception(s);
 						}
 					}
 
-					switch (crit.getOperator()) {
-					case CONTAINS:
-						sb.append(contains(tableAlias, crit));
-						break;
-					case ICONTAINS:
-						sb.append(icontains(tableAlias, crit));
-						break;
-					case NOT_CONTAINS:
-						sb.append(notContains(tableAlias, crit));
-						break;
-					case INOT_CONTAINS:
-						sb.append(notContains(tableAlias, crit));
-						break;
-					case EQUALS:
-						sb.append(equals(tableAlias, crit));
-						break;
-					case IEQUALS:
-						sb.append(iequals(tableAlias, crit));
-						break;
-					case NOT_EQUAL:
-						sb.append(not_equals(tableAlias, crit));
-						break;
-					case INOT_EQUAL:
-						sb.append(inot_equals(tableAlias, crit));
-						break;
-					case GREATER_OR_EQUAL:
-						sb.append(greaterOrEqual(tableAlias, crit));
-						break;
-					case GREATER_THAN:
-						sb.append(greaterThan(tableAlias, crit));
-						break;
-					case LESS_OR_EQUAL:
-						sb.append(lessOrEqual(tableAlias, crit));
-						break;
-					case LESS_THAN:
-						sb.append(lessThan(tableAlias, crit));
-						break;
-					case STARTS_WITH:
-						sb.append(startsWith(tableAlias, crit));
-						break;
-					case ISTARTS_WITH:
-						sb.append(istartsWith(tableAlias, crit));
-						break;
-					case INOT_STARTS_WITH:
-						sb.append(inotStartsWith(tableAlias, crit));
-						break;
-					case ENDS_WITH:
-						sb.append(endsWith(tableAlias, crit));
-						break;
-					case IENDS_WITH:
-						sb.append(iendsWith(tableAlias, crit));
-						break;
-					case INOT_ENDS_WITH:
-						sb.append(inotEndsWith(tableAlias, crit));
-						break;
-					case IS_BLANK:
-						sb.append(isBlank(tableAlias, crit));
-						break;
-					case NOT_BLANK:
-						sb.append(notBlank(tableAlias, crit));
-						break;
-					case IS_NULL:
-						sb.append(isNull(tableAlias, crit));
-						break;
-					case NOT_NULL:
-						sb.append(notNull(tableAlias, crit));
-						break;
-					case IN_SET:
-						sb.append(inSet(tableAlias, crit));
-						break;
-					case NOT_IN_SET:
-						sb.append(notInSet(tableAlias, crit));
-						break;
-					case BETWEEN:
-						sb.append(between(tableAlias,crit));
-						break;
-					default:
-						throw new Exception("unsupported OperatorId " + crit.getOperator() + "! Please extend this class: " + this.getClass());
-					}
+					appendCriteria(tableAlias, sb, crit);
 				}
 				sb.append(' ').append(cg.getOperator().getValue()).append(' ');
 			}
 
 			if (sb.length() > 1) {
-				sb.setLength(sb.length() - (cg.getOperator().getValue().length() + 2));	// remove last ' OperatorId '
+				sb.setLength(sb.length() - (cg.getOperator().getValue().length() + 2)); // remove last ' OperatorId '
 			}
 			sb.append(")");
 		}
 
-		if(log.isDebugEnabled()) {
+		if (log.isDebugEnabled()) {
 			log.debug("parsed " + cg + " to " + sb);
 		}
 		return sb.toString();
+	}
+
+	/**
+	 * append the SQL for a given criteria (depends on operator)
+	 * 
+	 * @param tableAlias
+	 * @param sb
+	 * @param crit
+	 * @throws Exception
+	 */
+	protected void appendCriteria(final String tableAlias, final StringBuilder sb, final Criteria crit) throws Exception {
+		switch (crit.getOperator()) {
+		case CONTAINS:
+			sb.append(contains(tableAlias, crit));
+			break;
+		case ICONTAINS:
+			sb.append(icontains(tableAlias, crit));
+			break;
+		case NOT_CONTAINS:
+			sb.append(notContains(tableAlias, crit));
+			break;
+		case INOT_CONTAINS:
+			sb.append(notContains(tableAlias, crit));
+			break;
+		case EQUALS:
+			sb.append(equals(tableAlias, crit));
+			break;
+		case IEQUALS:
+			sb.append(iequals(tableAlias, crit));
+			break;
+		case NOT_EQUAL:
+			sb.append(not_equals(tableAlias, crit));
+			break;
+		case INOT_EQUAL:
+			sb.append(inot_equals(tableAlias, crit));
+			break;
+		case GREATER_OR_EQUAL:
+			sb.append(greaterOrEqual(tableAlias, crit));
+			break;
+		case GREATER_THAN:
+			sb.append(greaterThan(tableAlias, crit));
+			break;
+		case LESS_OR_EQUAL:
+			sb.append(lessOrEqual(tableAlias, crit));
+			break;
+		case LESS_THAN:
+			sb.append(lessThan(tableAlias, crit));
+			break;
+		case STARTS_WITH:
+			sb.append(startsWith(tableAlias, crit));
+			break;
+		case ISTARTS_WITH:
+			sb.append(istartsWith(tableAlias, crit));
+			break;
+		case INOT_STARTS_WITH:
+			sb.append(inotStartsWith(tableAlias, crit));
+			break;
+		case ENDS_WITH:
+			sb.append(endsWith(tableAlias, crit));
+			break;
+		case IENDS_WITH:
+			sb.append(iendsWith(tableAlias, crit));
+			break;
+		case INOT_ENDS_WITH:
+			sb.append(inotEndsWith(tableAlias, crit));
+			break;
+		case IS_BLANK:
+			sb.append(isBlank(tableAlias, crit));
+			break;
+		case NOT_BLANK:
+			sb.append(notBlank(tableAlias, crit));
+			break;
+		case IS_NULL:
+			sb.append(isNull(tableAlias, crit));
+			break;
+		case NOT_NULL:
+			sb.append(notNull(tableAlias, crit));
+			break;
+		case IN_SET:
+			sb.append(inSet(tableAlias, crit));
+			break;
+		case NOT_IN_SET:
+			sb.append(notInSet(tableAlias, crit));
+			break;
+		case BETWEEN:
+			sb.append(between(tableAlias, crit));
+			break;
+		case BETWEEN_INCLUSIVE:
+			sb.append(betweenInclusive(tableAlias, crit));
+			break;
+		default:
+			throw new Exception("unsupported OperatorId " + crit.getOperator() + "! Please extend this class: " + this.getClass());
+		}
 	}
 
 	protected String contains(final String tableAlias, final Criteria criteria) throws Exception {
@@ -243,8 +266,7 @@ public class WherePart {
 		if (criteria.getStringValue() != null) {
 			params.add(criteria.getStringValue());
 			return "LOWER(" + tableAlias + criteria.getFieldName() + ") LIKE LOWER(?)";
-		}
-		else {
+		} else {
 			params.add(getValue(criteria));
 			return tableAlias + criteria.getFieldName() + " LIKE ?";
 		}
@@ -261,8 +283,7 @@ public class WherePart {
 		if (criteria.getStringValue() != null) {
 			params.add(criteria.getStringValue());
 			return "LOWER(" + tableAlias + criteria.getFieldName() + ") NOT LIKE LOWER(?)";
-		}
-		else {
+		} else {
 			params.add(getValue(criteria));
 			return tableAlias + criteria.getFieldName() + " NOT LIKE ?";
 		}
@@ -334,22 +355,23 @@ public class WherePart {
 	}
 
 	private String getValueAsStr(final Criteria criteria) {
-	    final Object str = getValue(criteria);
-	    if(str == null) {
-	      return null;
-	    }
-	    if(str instanceof Date) {
-          return DB_DATETIME_FORMAT.format((Date) str);
-        }
-	    if(str instanceof String) {
-	      return (String) str;
-	    }
-	    return String.valueOf(str);
+		final Object str = getValue(criteria);
+		if (str == null) {
+			return null;
+		}
+		if (str instanceof Date) {
+			return DB_DATETIME_FORMAT.format((Date) str);
+		}
+		if (str instanceof String) {
+			return (String) str;
+		}
+		return String.valueOf(str);
 	}
 
-    private Object getValue(final Criteria criteria) {
-        return criteria.getStringValue() != null ? criteria.getStringValue() : (criteria.getNumberValue() != null ? criteria.getNumberValue() : criteria.getDateValue());
-    }
+	private Object getValue(final Criteria criteria) {
+		return criteria.getStringValue() != null ? criteria.getStringValue()
+				: (criteria.getNumberValue() != null ? criteria.getNumberValue() : criteria.getDateValue());
+	}
 
 	protected String isBlank(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
@@ -374,16 +396,16 @@ public class WherePart {
 	protected String inSet(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
 		final Class<?> type = determineListType(criteria.getListValues());
-        params.addAll(criteria.getListValues());
-        final String csv = criteria.getListValues().stream().map(val -> "?").collect(Collectors.joining(","));
+		params.addAll(criteria.getListValues());
+		final String csv = criteria.getListValues().stream().map(val -> "?").collect(Collectors.joining(","));
 		return tableAlias + criteria.getFieldName() + " IN (" + csv + ")";
 	}
 
 	protected String notInSet(final String tableAlias, final Criteria criteria) throws Exception {
 		validateCriteria(criteria);
 		final Class<?> type = determineListType(criteria.getListValues());
-        params.addAll(criteria.getListValues());
-        final String csv = criteria.getListValues().stream().map(val -> "?").collect(Collectors.joining(","));
+		params.addAll(criteria.getListValues());
+		final String csv = criteria.getListValues().stream().map(val -> "?").collect(Collectors.joining(","));
 		return tableAlias + criteria.getFieldName() + " NOT IN (" + csv + ")";
 	}
 
@@ -394,10 +416,20 @@ public class WherePart {
 		}
 		final Class<?> type = determineListType(criteria.getListValues());
 		params.add(criteria.getListValues().get(0));
-        params.add(criteria.getListValues().get(1));
-        return tableAlias + criteria.getFieldName() + " BETWEEN ? AND ?";
+		params.add(criteria.getListValues().get(1));
+		return tableAlias + criteria.getFieldName() + " BETWEEN ? AND ?";
 	}
 
+	protected String betweenInclusive(final String tableAlias, final Criteria criteria) throws Exception {
+		validateCriteria(criteria);
+		if (criteria.getListValues().size() != 2) {
+			throw new Exception("Expected exactly two list values to use the BETWEEN_INCLUSIVE operator!");
+		}
+		final Class<?> type = determineListType(criteria.getListValues());
+		params.add(criteria.getListValues().get(0));
+		params.add(criteria.getListValues().get(1));
+		return "(" + tableAlias + criteria.getFieldName() + " >= ? AND " + tableAlias + criteria.getFieldName() + " <= ?)";
+	}
 
 	public boolean isEmpty() {
 		return sql.length() == 0;
@@ -414,10 +446,11 @@ public class WherePart {
 
 	/**
 	 * checks if the combination of Operator and value type is correct
+	 * 
 	 * @param criteria
 	 * @throws Exception
 	 */
-	private void validateCriteria(final Criteria criteria) throws Exception {
+	protected void validateCriteria(final Criteria criteria) throws Exception {
 		// check if a list value is set, but a unary operator is used
 		if ((criteria.getListValues() != null && !criteria.getListValues().isEmpty()) && !ALLOWED_LIST_OPERATORS.contains(criteria.getOperator())) {
 			final String msg = "the operator '" + criteria.getOperator() + "' does not support list values";
@@ -432,7 +465,7 @@ public class WherePart {
 		}
 	}
 
-	private Class determineListType(final List<?> list) {
+	protected Class determineListType(final List<?> list) {
 		if (list != null && list.size() > 0) {
 			final Object o = list.get(0);
 			return o.getClass();
@@ -441,4 +474,3 @@ public class WherePart {
 	}
 
 }
-
