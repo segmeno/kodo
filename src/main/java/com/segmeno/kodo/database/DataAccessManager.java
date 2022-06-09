@@ -247,7 +247,7 @@ public class DataAccessManager {
 		final String pk = String.valueOf(getValueFromRow(alias, entity.getPrimaryKeyColumn(), row, false));
 		final String uniqueKey = alias + "#" + pk;
 
-		for (final Field field : entity.fields) {
+		for (final Field field : entity.getCachedDbFields()) {
 
 			if (List.class.isAssignableFrom(field.getType())) {
 
@@ -414,7 +414,7 @@ public class DataAccessManager {
 
     private void addElemRecursively(final DatabaseEntity entity) throws Exception {
 
-    	for (final Field field : entity.fields) {
+    	for (final Field field : entity.getCachedDbFields()) {
 			if (field.getAnnotation(MappingRelation.class) != null && field.getAnnotation(MappingRelation.class).mappingTableName().isEmpty()) {
 				// these are required parent elements which will first be created if not existing
 				if (DatabaseEntity.class.isAssignableFrom(field.getType())) {
@@ -436,13 +436,13 @@ public class DataAccessManager {
 		final Number key = insert.executeAndReturnKey(entity.toMap());
 		entity.setPrimaryKeyValue(key);
 
-		for (final Field field : entity.fields) {
+		for (final Field field : entity.getCachedDbFields()) {
 			if (field.getAnnotation(MappingRelation.class) != null && field.getAnnotation(MappingRelation.class).mappingTableName().isEmpty()) {
 				// these are dependent child elements which will be created after creating the parent element
 				if (List.class.isAssignableFrom(field.getType())) {
 	    			final List<DatabaseEntity> list = (List)field.get(entity);
 	    			for (final DatabaseEntity child : list) {
-	    				final Field fkField = child.fields.stream().filter(f -> f.getName().equalsIgnoreCase(field.getAnnotation(MappingRelation.class).joinedColumnName())).findFirst().orElse(null);
+	    				final Field fkField = child.getCachedDbFields().stream().filter(f -> f.getName().equalsIgnoreCase(field.getAnnotation(MappingRelation.class).joinedColumnName())).findFirst().orElse(null);
     					fkField.set(child, convertTo(fkField.getType(), entity.getPrimaryKeyValue()));
 
 	    				if (child.getPrimaryKeyValue() == null) {
@@ -523,7 +523,7 @@ public class DataAccessManager {
 
 	private void deleteElemsRecursively(final DatabaseEntity entity, final String stmt, final List<Object> params) throws Exception {
 
-		for (final Field field : entity.fields) {
+		for (final Field field : entity.getCachedDbFields()) {
 			// discover all sub elements which are coming from sub tables
 			if (field.getAnnotation(MappingRelation.class) != null) {
 				final MappingRelation mapping = field.getAnnotation(MappingRelation.class);
@@ -619,7 +619,7 @@ public class DataAccessManager {
     protected Map<Class<? extends DatabaseEntity>,List<DatabaseEntity>> getAllChildEntities(final DatabaseEntity mainEntity, final MappingTableBehaviour mappingTableBehaviour) throws Exception {
     	final Map<Class<? extends DatabaseEntity>,List<DatabaseEntity>> typeToEntries = new HashMap<>();
 
-    	for (final Field f : mainEntity.fields) {
+    	for (final Field f : mainEntity.getCachedDbFields()) {
 			// check if this is a list
 			if (List.class.isAssignableFrom(f.getType())) {
     			final Type genericType = ((ParameterizedType) f.getGenericType()).getActualTypeArguments()[0];
@@ -715,7 +715,7 @@ public class DataAccessManager {
 			entityTableAlias = String.valueOf(aliasField.get(entity));
 		}
 
-		for (final Field field : entity.fields) {
+		for (final Field field : entity.getCachedDbFields()) {
 			// only join children to the select if they are annotated with the MappingRelation annotation
 			if (field.getAnnotation(MappingRelation.class) != null) {
 				// if this child element position exceeds the maximum depth of the joins, we do not fetch it

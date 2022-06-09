@@ -25,11 +25,39 @@ public abstract class DatabaseEntity {
 	private String tableAlias;
 	private final Field primaryKey;
 
-	final transient List<Field> fields = new ArrayList<Field>();
+	private final transient HashMap<Class, ArrayList<Field>> class2fields = new HashMap<>(64);
+	private final transient HashMap<Class, Field> class2pk = new HashMap<>(64);
+	private transient ArrayList<Field> fields;
 
 	public DatabaseEntity() {
-	    Field pk = null;
-		Class clazz = this.getClass();
+		final Class clazz = this.getClass();
+		fields = class2fields.get(clazz);
+		if(fields == null) {
+			synchronized(class2fields) {
+				fields = class2fields.get(clazz);
+				if(fields == null) {
+					fields = new ArrayList<>(128);
+					final Field pk = getFields(clazz, fields);
+					class2pk.put(clazz, pk);
+					fields.trimToSize();
+					class2fields.put(clazz, fields);
+				}
+			}
+		}
+
+		primaryKey = class2pk.get(clazz);
+		if(primaryKey == null) {
+		  throw new RuntimeException(this.getClass().getName() + " has not @PrimaryKey defined");
+		}
+	}
+
+	public ArrayList<Field> getCachedDbFields() {
+		return fields;
+	}
+	
+	private Field getFields(Class startClass, ArrayList<Field> fields) {
+		Field pk = null;
+		Class clazz = startClass;
 		while(clazz != null && !DatabaseEntity.class.equals(clazz)) {
 			for (final Field field : clazz.getDeclaredFields()) {
 				field.setAccessible(true);
@@ -37,19 +65,19 @@ public abstract class DatabaseEntity {
 					continue;
 				}
 				// do not overwrite once found pk, with that from a base class
-				if (pk == null && field.getAnnotation(PrimaryKey.class) != null) {
-					pk = field;
+				if (field.getAnnotation(PrimaryKey.class) != null) {
+					if(pk != null) {
+						LOGGER.warn("For " + startClass + " we found primary key " + pk + " and now also " + field + ", we will use the first one");
+					} else {
+						pk = field;
+					}
 				}
 				fields.add(field);
 			}
 			clazz = clazz.getSuperclass();
 		}
-
-		if(pk == null) {
-		  throw new RuntimeException(this.getClass().getName() + " has not @PrimaryKey defined");
-		}
-
-		primaryKey = pk;
+		
+		return pk;
 	}
 
 	/**
