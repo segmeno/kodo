@@ -79,8 +79,16 @@ public class Criteria {
 		return operator;
 	}
 
+	public void setStringValue(String stringValue) {
+		this.stringValue = stringValue;
+	}
+
 	public String getStringValue() {
 		return stringValue;
+	}
+
+	public void setNumberValue(Number numberValue) {
+		this.numberValue = numberValue;
 	}
 
 	public Number getNumberValue() {
