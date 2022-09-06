@@ -461,10 +461,10 @@ public class DataAccessManager {
     }
 
 	public void updateElem(final DatabaseEntity obj) throws Exception {
-    	if (obj.getPrimaryKeyValue()== null || Integer.valueOf(String.valueOf(obj.getPrimaryKeyValue())) == -1) {
+		final Object pk = obj.getPrimaryKeyValue();
+    	if (pk == null || Integer.valueOf(String.valueOf(pk)) == -1) {
 			addElem(obj);
-		}
-    	else {
+		} else {
     		try {
 				// first, update the main entity
 				final StringBuilder sb = new StringBuilder();
