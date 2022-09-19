@@ -784,7 +784,7 @@ public class DataAccessManager {
      * @param obj
      * @return
      */
-    public static Object convertTo(final Class<?> type, final Object obj) {
+    public static Object convertTo(final Class<?> type, final Object obj) throws Exception {
     	if (obj == null) {
     		return obj;
     	}
@@ -808,6 +808,7 @@ public class DataAccessManager {
     				return constant;
     			}
     		}
+    		throw new Exception("Cannot resolve '" + obj + "' to enum value of type " + type.getName());
     	}
     	if (String.class.isAssignableFrom(type)) {
     		obj.toString();
