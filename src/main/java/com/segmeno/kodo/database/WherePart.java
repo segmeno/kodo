@@ -468,7 +468,7 @@ public class WherePart {
 	protected Class determineListType(final List<?> list) {
 		if (list != null && list.size() > 0) {
 			final Object o = list.get(0);
-			return o.getClass();
+			return o == null ? null : o.getClass();
 		}
 		return null;
 	}
