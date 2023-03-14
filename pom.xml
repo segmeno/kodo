@@ -4,7 +4,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>com.segmeno</groupId>
 	<artifactId>kodo</artifactId>
-	<version>1.2.13-RELEASE</version>
+	<version>1.2.14-RELEASE</version>
 	<name>com.segmeno.kodo</name>
 	<description>A Database Access Layer which can be easily embedded in any Java Backend Code</description>
 	<url>http://www.segmeno.com</url>
@@ -58,7 +58,7 @@
 		<dependency>
 		    <groupId>com.fasterxml.jackson.core</groupId>
 		    <artifactId>jackson-annotations</artifactId>
-		    <version>2.13.4</version>
+		    <version>2.14.2</version>
 		</dependency>
 		<dependency>
 		    <groupId>org.apache.logging.log4j</groupId>
@@ -73,17 +73,17 @@
 		<dependency>
 			<groupId>org.springframework</groupId>
 			<artifactId>spring-jdbc</artifactId>
-			<version>5.3.23</version>
+			<version>5.3.25</version>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework</groupId>
 			<artifactId>spring-beans</artifactId>
-			<version>5.3.23</version>
+			<version>5.3.25</version>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework</groupId>
 			<artifactId>spring-context</artifactId>
-			<version>5.3.23</version>
+			<version>5.3.25</version>
 		</dependency>
 		<dependency>
 		    <groupId>org.junit.jupiter</groupId>
