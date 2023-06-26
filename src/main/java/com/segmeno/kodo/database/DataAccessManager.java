@@ -248,9 +248,7 @@ public class DataAccessManager {
 		final String uniqueKey = alias + "#" + pk;
 
 		for (final Field field : entity.getCachedDbFields()) {
-
 			if (List.class.isAssignableFrom(field.getType())) {
-
 				final Type genericType = ((ParameterizedType) field.getGenericType()).getActualTypeArguments()[0];
     			final Class<?> genericClass = Class.forName(genericType.getTypeName());
 
@@ -277,7 +275,7 @@ public class DataAccessManager {
 	    			if (childPk != null) {
 	    				List<DatabaseEntity> list = (List)field.get(entity);
 	    				if (list == null) {
-							list = new ArrayList<>();
+							list = new ArrayList<>(0);
 						}
 
 	    				if (!alreadyFilledObjects.containsKey(childUniqueKey)) {
@@ -415,7 +413,8 @@ public class DataAccessManager {
     private void addElemRecursively(final DatabaseEntity entity) throws Exception {
 
     	for (final Field field : entity.getCachedDbFields()) {
-			if (field.getAnnotation(MappingRelation.class) != null && field.getAnnotation(MappingRelation.class).mappingTableName().isEmpty()) {
+    		final MappingRelation mr = field.getAnnotation(MappingRelation.class);
+			if (mr != null && mr.mappingTableName().isEmpty()) {
 				// these are required parent elements which will first be created if not existing
 				if (DatabaseEntity.class.isAssignableFrom(field.getType())) {
 
@@ -437,17 +436,20 @@ public class DataAccessManager {
 		entity.setPrimaryKeyValue(key);
 
 		for (final Field field : entity.getCachedDbFields()) {
-			if (field.getAnnotation(MappingRelation.class) != null && field.getAnnotation(MappingRelation.class).mappingTableName().isEmpty()) {
+			final MappingRelation mr = field.getAnnotation(MappingRelation.class);
+			if (mr != null && mr.mappingTableName().isEmpty()) {
 				// these are dependent child elements which will be created after creating the parent element
 				if (List.class.isAssignableFrom(field.getType())) {
 	    			final List<DatabaseEntity> list = (List)field.get(entity);
-	    			for (final DatabaseEntity child : list) {
-	    				final Field fkField = child.getCachedDbFields().stream().filter(f -> f.getName().equalsIgnoreCase(field.getAnnotation(MappingRelation.class).joinedColumnName())).findFirst().orElse(null);
-    					fkField.set(child, convertTo(fkField.getType(), entity.getPrimaryKeyValue()));
-
-	    				if (child.getPrimaryKeyValue() == null) {
-	    					addElemRecursively(child);
-	    				}
+	    			if(list != null) {
+		    			for (final DatabaseEntity child : list) {
+		    				final Field fkField = child.getCachedDbFields().stream().filter(f -> f.getName().equalsIgnoreCase(mr.joinedColumnName())).findFirst().orElse(null);
+	    					fkField.set(child, convertTo(fkField.getType(), entity.getPrimaryKeyValue()));
+	
+		    				if (child.getPrimaryKeyValue() == null) {
+		    					addElemRecursively(child);
+		    				}
+		    			}
 	    			}
 				}
 			}
@@ -525,11 +527,11 @@ public class DataAccessManager {
 
 		for (final Field field : entity.getCachedDbFields()) {
 			// discover all sub elements which are coming from sub tables
-			if (field.getAnnotation(MappingRelation.class) != null) {
-				final MappingRelation mapping = field.getAnnotation(MappingRelation.class);
+			final MappingRelation mr = field.getAnnotation(MappingRelation.class);
+			if (mr != null) {
 				// if there is an m:n mapping table, remove the entry first
-				if (!mapping.mappingTableName().isEmpty()) {
-					final String nmDel = "DELETE FROM " + mapping.mappingTableName() + " WHERE " + mapping.masterColumnName() + " = (" + stmt + ")";
+				if (!mr.mappingTableName().isEmpty()) {
+					final String nmDel = "DELETE FROM " + mr.mappingTableName() + " WHERE " + mr.masterColumnName() + " = (" + stmt + ")";
 					log.debug("Query: " + sqlPrettyPrint(nmDel) + "\t[" + toCsv(params.toArray()) + "]");
 					jdbcTemplate.update(nmDel, params.toArray());
 				}
@@ -539,7 +541,7 @@ public class DataAccessManager {
 	    			final DatabaseEntity childEntity = (DatabaseEntity)genericClass.getConstructor().newInstance();
 
 	    			final String s = "SELECT " + childEntity.getPrimaryKeyColumn() + " FROM " + childEntity.getTableName() + " WHERE " +
-							field.getAnnotation(MappingRelation.class).joinedColumnName() + " IN (" + stmt + ")";
+							mr.joinedColumnName() + " IN (" + stmt + ")";
 
 	    			deleteElemsRecursively(childEntity, s, params);
 				}
@@ -627,10 +629,14 @@ public class DataAccessManager {
     			// check if the list generic is of type DatabaseEntity
     			if (DatabaseEntity.class.isAssignableFrom(genericClass)) {
     				// if the child element is related via a many-to-many table, we need to check if it should be part of the result
-    				if (f.getAnnotation(MappingRelation.class) != null && !f.getAnnotation(MappingRelation.class).mappingTableName().isEmpty() && mappingTableBehaviour == MappingTableBehaviour.IGNORE) {
+    				final MappingRelation mr = f.getAnnotation(MappingRelation.class);
+    				if (mr != null && !mr.mappingTableName().isEmpty() && mappingTableBehaviour == MappingTableBehaviour.IGNORE) {
     					continue;
     				}
-    				final List<DatabaseEntity> list = (List<DatabaseEntity>)f.get(mainEntity);
+    				List<DatabaseEntity> list = (List<DatabaseEntity>)f.get(mainEntity);
+    				if (list == null) {
+						list = new ArrayList<>(0);
+					}
     				typeToEntries.put((Class<? extends DatabaseEntity>)genericClass, list);
     			}
 			}
@@ -717,12 +723,12 @@ public class DataAccessManager {
 
 		for (final Field field : entity.getCachedDbFields()) {
 			// only join children to the select if they are annotated with the MappingRelation annotation
-			if (field.getAnnotation(MappingRelation.class) != null) {
+			final MappingRelation mr = field.getAnnotation(MappingRelation.class);
+			if (mr != null ) {
 				// if this child element position exceeds the maximum depth of the joins, we do not fetch it
 				if (fetchDepth != -1 && currentDepth > fetchDepth) {
 					continue;
 				}
-				final MappingRelation relation = field.getAnnotation(MappingRelation.class);
 				final DatabaseEntity childEntity;
 
 				if (List.class.isAssignableFrom(field.getType())) {
@@ -745,12 +751,12 @@ public class DataAccessManager {
     			select.append(", ").append(getColumnsCsv(childAlias, childEntity.getColumnNames(true), true));
 
     			// this is an m:n mapping
-    			if (!relation.mappingTableName().isEmpty()) {
-    				join.append(" LEFT JOIN " + relation.mappingTableName() + " ON " + relation.mappingTableName() + "." + relation.masterColumnName() + " = " + entityTableAlias + "." + entity.getPrimaryKeyColumn());
-    				join.append(" LEFT JOIN " + childEntity.getTableName() + " " + childAlias + " ON " + relation.mappingTableName() + "." + relation.joinedColumnName() + " = " + childAlias + "." + childEntity.getPrimaryKeyColumn());
+    			if (!mr.mappingTableName().isEmpty()) {
+    				join.append(" LEFT JOIN " + mr.mappingTableName() + " ON " + mr.mappingTableName() + "." + mr.masterColumnName() + " = " + entityTableAlias + "." + entity.getPrimaryKeyColumn());
+    				join.append(" LEFT JOIN " + childEntity.getTableName() + " " + childAlias + " ON " + mr.mappingTableName() + "." + mr.joinedColumnName() + " = " + childAlias + "." + childEntity.getPrimaryKeyColumn());
     			}
     			else {
-    				join.append(" LEFT JOIN " + childEntity.getTableName() + " " + childAlias + " ON " + childAlias + "." + relation.joinedColumnName() + " = " + entityTableAlias + "." + relation.masterColumnName());
+    				join.append(" LEFT JOIN " + childEntity.getTableName() + " " + childAlias + " ON " + childAlias + "." + mr.joinedColumnName() + " = " + entityTableAlias + "." + mr.masterColumnName());
     			}
     			// keep track of the current level in the tree
 				path += "/" + entity.getTableName();
