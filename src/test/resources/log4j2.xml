@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Configuration status="info">
+
+    <Properties>
+        <Property name="layout">%d{HH:mm:ss.SSS} [%t] %-5level %logger{1.1.1.36} - %msg%n</Property>
+    </Properties>
+
+    <Appenders>
+        <Console name="CONSOLE" target="SYSTEM_OUT">
+            <PatternLayout pattern="${layout}"/>
+        </Console>
+    </Appenders>
+
+    <Loggers>
+
+        <Logger name="com.segmeno.kodo" level="trace" />
+        <Logger name="org.dbunit" level="warn" />
+        
+        <Logger name="org.springframework.test" level="info" />
+        <Logger name="org.springframework.jdbc" level="info" />
+        <Logger name="org.springframework.integration.mail" level="debug" />
+        
+        <Root level="warn">
+            <AppenderRef ref="CONSOLE"/>
+        </Root>
+    </Loggers>
+
+</Configuration>

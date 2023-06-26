@@ -1,5 +1,6 @@
 package com.segmeno.kodo.database;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -24,6 +25,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
@@ -37,7 +39,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowCallbackHandler;
 @TestMethodOrder(OrderAnnotation.class)
 public class DataAccessManagerTest {
-
+	private static final String ROLE_ADMIN = "Admin";
+	private static final String ROLE_TESTER = "Tester";
+	private static final String ROLE_NORMAL_GUY = "Normal Guy";
 	private static final Logger LOG = LogManager.getLogger(DataAccessManagerTest.class);
 	private static DataAccessManager manager;
 	private static Connection con;
@@ -75,8 +79,9 @@ public class DataAccessManagerTest {
 
 		stmt.execute("insert into tbUser (name, passwordHash, clearanceLevelId, createdAt) values ('Tom', 'pw123', 5, '2020-01-01')");
 		stmt.execute("insert into tbUser (name, passwordHash, clearanceLevelId, createdAt) values ('Tim', 'pw456', 4, '2020-12-31')");
-		stmt.execute("insert into tbRole (name, primaryColorId, secondaryColorId, description, createdAt) values ('Admin', 1, 2, 'the admin role', '2020-01-01')");
-		stmt.execute("insert into tbRole (name, primaryColorId, secondaryColorId, description, createdAt) values ('Tester', 2, 2, 'the tester role', '2020-05-15')");
+		stmt.execute("insert into tbRole (name, primaryColorId, secondaryColorId, description, createdAt) values ('" + ROLE_ADMIN + "', 1, 2, 'the admin role', '2020-01-01')");
+		stmt.execute("insert into tbRole (name, primaryColorId, secondaryColorId, description, createdAt) values ('" + ROLE_TESTER+ "', 2, 2, 'the tester role', '2020-05-15')");
+		stmt.execute("insert into tbRole (name, primaryColorId, secondaryColorId, description, createdAt) values ('" + ROLE_NORMAL_GUY + "', 3, 3, 'the user role', '2020-05-15')");
 		con.commit();
 
 		stmt.execute("insert into tbAddress (userId, street, postalCode, createdAt) values ((SELECT id FROM tbUser WHERE Name = 'Tom'), 'Elmstreet', '31117', '2020-01-01')");
@@ -119,7 +124,7 @@ public class DataAccessManagerTest {
     @Order(2)
     public void pkQueryTest() throws Exception {
         final ArrayList<Object> params = new ArrayList<>();
-        params.add("Admin");
+        params.add(ROLE_ADMIN);
 
         final List<TestUser> users = manager.getElemsByPkQuery("SELECT UserId FROM tbuserRole WHERE RoleId IN (SELECT id FROM tbRole WHERE Name = ?)", params, TestUser.class);
         assertTrue(users.size() == 1);
@@ -178,22 +183,72 @@ public class DataAccessManagerTest {
 	@Test
     @Order(7)
 	public void updateElemTest() throws Exception {
-
+		Criteria c = new Criteria("name", Operator.EQUALS, "Bill");
 		TestUser u = new TestUser();
 		u.name = "Bill";
 		u.pwHash = "ttt";
-
+		
+		
+		TestRole r1 = new TestRole();
+		r1.name = ROLE_ADMIN;
+		r1.id = 1;
+		TestRole r2 = new TestRole();
+		r2.name = ROLE_TESTER;
+		r2.id = 2;
+		
+		u.roles.add(r1);
+		u.roles.add(r2);
+		
+		// create
 		u = manager.addElem(u);
-		manager.updateElem(u);
-		manager.deleteElems(new Criteria("name", Operator.EQUALS, "Bill"), TestUser.class);
+		try {		
+			// check
+			List<TestUser> l = manager.getElems(c, TestUser.class);
+			
+			assertNotNull(l);
+			assertEquals(l.size(), 1);
+			u = l.get(0);
+			assertEquals(u.pwHash, "ttt");
+			assertNotNull(u.roles);
+			assertEquals(u.roles.size(), 2);
+			assertNotNull(u.roles.stream().filter(r -> r.name.equals(ROLE_ADMIN)).findFirst().orElse(null));
+			assertNotNull(u.roles.stream().filter(r -> r.name.equals(ROLE_TESTER)).findFirst().orElse(null));
+			
+			// modify
+			u.pwHash = "ttt2";
+			u.roles = u.roles.stream().filter(r -> {
+				// remove ROLE_TESTER
+				return r.name.equals(ROLE_ADMIN);
+			}).collect(Collectors.toList());
+			TestRole r3 = new TestRole();
+			r3.name = ROLE_NORMAL_GUY;
+			r3.id = 3;
+			u.roles.add(r3);
+					
+			manager.updateElem(u);
+			
+			// check
+			l = manager.getElems(c, TestUser.class);
+			assertNotNull(l);
+			assertEquals(l.size(), 1);
+			u = l.get(0);
+			assertEquals(u.pwHash, "ttt2");
+			assertNotNull(u.roles);
+			assertEquals(u.roles.size(), 2);
+			assertNotNull(u.roles.stream().filter(r -> r.name.equals(ROLE_ADMIN)).findFirst().orElse(null));
+			assertNotNull(u.roles.stream().filter(r -> r.name.equals(ROLE_NORMAL_GUY)).findFirst().orElse(null));
+		} finally {
+			// delete
+			manager.deleteElems(c, TestUser.class);
+		}
 	}
 
 	@Test
     @Order(8)
 	public void getRecordsTest() throws Exception {
 		final List<Map<String,Object>> res = manager.getRecords("tbUser", null, 10, 1, new Sort("Name", SortDirection.ASC));
-		assertTrue(res.size() == 2);
-		assertTrue((int)res.get(0).get("ID") == 2);
+		assertEquals(res.size(), 2);
+		assertEquals((int)res.get(0).get("ID"), 2);
 	}
 
 	@Test
@@ -201,21 +256,21 @@ public class DataAccessManagerTest {
 	public void getElemsTest() throws Exception {
 
 		final List<TestUser> users = manager.getElems(TestUser.class);
-		assertTrue(users.size() == 2);
+		assertEquals(users.size(), 2);
 
 		final TestUser tom = users.stream().filter(user -> user.name.equals("Tom")).findFirst().orElse(null);
 		assertNotNull(tom);
-		assertTrue(tom.addresses.size() == 2);
-		assertTrue(tom.roles.size() == 2);
+		assertEquals(tom.addresses.size(), 2);
+		assertEquals(tom.roles.size(), 2);
 
 		final TestUser tim = users.stream().filter(user -> user.name.equals("Tim")).findFirst().orElse(null);
 		assertNotNull(tim);
-		assertTrue(tim.addresses.size() == 1);
-		assertTrue(tim.roles.size() == 1);
+		assertEquals(tim.addresses.size(), 1);
+		assertEquals(tim.roles.size(), 1);
 
 		final TestRole timsRole = tim.roles.get(0);
-		assertTrue(timsRole.primaryColor.name.equals("green"));
-		assertTrue(timsRole.secondaryColor.name.equals("green"));
+		assertEquals(timsRole.primaryColor.name, ("green"));
+		assertEquals(timsRole.secondaryColor.name, ("green"));
 	}
 
 	@Test

@@ -124,18 +124,23 @@ public abstract class DatabaseEntity {
 			if (f.getAnnotation(Column.class) != null && !f.getAnnotation(Column.class).columnName().isEmpty()) {
 				colName = f.getAnnotation(Column.class).columnName().toLowerCase();
 				map.put(colName, f.get(this));
-			}
-			else if (f.getAnnotation(MappingRelation.class) != null && f.getAnnotation(MappingRelation.class).mappingTableName().isEmpty()) {
+			} else if (f.getAnnotation(MappingRelation.class) != null && f.getAnnotation(MappingRelation.class).mappingTableName().isEmpty()) {
 				colName = f.getAnnotation(MappingRelation.class).masterColumnName().toLowerCase();
 				if (DatabaseEntity.class.isAssignableFrom(f.getType())) {
 					final DatabaseEntity elem = (DatabaseEntity)f.get(this);
-					map.put(colName, elem == null ? null : elem.getPrimaryKeyValue());
-				}
-				else {
+					if(elem == null) {
+						map.put(colName, null);
+					} else {
+						final Object epk = elem.getPrimaryKeyValue();
+						if(epk == null) {
+	    					throw new RuntimeException("With One to One Relations the linked object has to exist (PK has to be set)!");
+	    				}
+						map.put(colName, epk);
+					}
+				} else {
 					map.put(colName, f.get(this));
 				}
-			}
-			else {
+			} else {
 				colName = f.getName().toLowerCase();
 				map.put(colName, f.get(this));
 			}

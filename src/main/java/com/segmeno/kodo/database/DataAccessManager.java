@@ -1,15 +1,5 @@
 package com.segmeno.kodo.database;
 
-import com.segmeno.kodo.annotation.Column;
-import com.segmeno.kodo.annotation.CustomSql;
-import com.segmeno.kodo.annotation.MappingRelation;
-import com.segmeno.kodo.transport.Criteria;
-import com.segmeno.kodo.transport.CriteriaGroup;
-import com.segmeno.kodo.transport.IKodoEnum;
-import com.segmeno.kodo.transport.Operator;
-import com.segmeno.kodo.transport.Sort;
-import com.segmeno.kodo.transport.Sort.SortDirection;
-
 import java.lang.reflect.Field;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
@@ -19,9 +9,11 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -30,9 +22,20 @@ import org.apache.logging.log4j.Logger;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowCallbackHandler;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.core.simple.SimpleJdbcInsert;
+
+import com.segmeno.kodo.annotation.Column;
+import com.segmeno.kodo.annotation.CustomSql;
+import com.segmeno.kodo.annotation.MappingRelation;
+import com.segmeno.kodo.transport.Criteria;
+import com.segmeno.kodo.transport.CriteriaGroup;
+import com.segmeno.kodo.transport.IKodoEnum;
+import com.segmeno.kodo.transport.Operator;
+import com.segmeno.kodo.transport.Sort;
+import com.segmeno.kodo.transport.Sort.SortDirection;
 
 public class DataAccessManager {
 
@@ -134,8 +137,13 @@ public class DataAccessManager {
 			final DatabaseEntity mainEntity = entityType.getConstructor().newInstance();
 			final String query = buildQuery(mainEntity, advancedCriteria, sort, params, fetchDepth);
 
-			log.debug("Query: " + sqlPrettyPrint(query) + "\t" + params);
+			if(log.isDebugEnabled()) {
+				log.debug("Query: " + sqlPrettyPrint(query) + "\t" + params);
+			}
 			final List<Map<String,Object>> rows = jdbcTemplate.queryForList(query, params.toArray());
+			if(log.isTraceEnabled()) {
+            	log.trace("Result: " + rows.stream().map(m -> m.toString()).collect(Collectors.joining("\n")));
+            }
 			return rowsToObjects(mainEntity, rows);
 		} catch (final Exception e) {
 			log.error("could not get elements of type " + entityType.getName(), e);
@@ -186,8 +194,13 @@ public class DataAccessManager {
 
             query = query.replace("?", queryByPK);
 
-            log.debug("Query: " + sqlPrettyPrint(query) + "\t" + queryByPKparams);
+            if(log.isDebugEnabled()) {
+            	log.debug("Query: " + sqlPrettyPrint(query) + "\t" + queryByPKparams);
+            }
             final List<Map<String,Object>> rows = jdbcTemplate.queryForList(query, queryByPKparams.toArray());
+            if(log.isTraceEnabled()) {
+            	log.trace("Result: " + rows.stream().map(m -> m.toString()).collect(Collectors.joining("\n")));
+            }
             return rowsToObjects(mainEntity, rows);
         } catch (final Exception e) {
             log.error("could not get elements of type " + entityType.getName(), e);
@@ -214,9 +227,14 @@ public class DataAccessManager {
 
 		final Integer totalRows = jdbcTemplate.queryForObject(count, Integer.class);
 		stmt = addPaging(stmt, currentPage, pageSize, totalRows);
-		log.debug("Query: " + sqlPrettyPrint(stmt) + "\t" + where.getValues().toArray());
-
-		return jdbcTemplate.queryForList(stmt, where.getValues().toArray());
+		if(log.isDebugEnabled()) {
+			log.debug("Query: " + sqlPrettyPrint(stmt) + "\t" + where.getValues().toArray());
+		}
+		List<Map<String,Object>> rows = jdbcTemplate.queryForList(stmt, where.getValues().toArray());
+		if(log.isTraceEnabled()) {
+        	log.trace("Result: " + rows.stream().map(m -> m.toString()).collect(Collectors.joining("\n")));
+        }
+		return rows;
 	}
 
 	private <T> List<T> rowsToObjects(DatabaseEntity baseEntity, final List<Map<String, Object>> rows) throws Exception {
@@ -384,9 +402,14 @@ public class DataAccessManager {
 
 			final String sql = "SELECT COUNT(DISTINCT " + mainEntity.getTableName() + "." + mainEntity.getPrimaryKeyColumn() + ")" + from.toString() + join.toString() + where.toString();
 
-			log.debug("Query: " + sqlPrettyPrint(sql) + "\t[" + toCsv(params.toArray()) + "]");
-			return jdbcTemplate.queryForObject(sql, params.toArray(), Long.class);
-
+			if(log.isDebugEnabled()) {
+				log.debug("Query: " + sqlPrettyPrint(sql) + "\t[" + toCsv(params.toArray()) + "]");
+			}
+			final Long result = jdbcTemplate.queryForObject(sql, params.toArray(), Long.class);
+			if(log.isTraceEnabled()) {
+            	log.trace("Result: " + result + " counted");
+            }
+			return result;
 		} catch (final Exception e) {
 			log.error("could not count elements of type " + entityType.getName(), e);
 			throw e;
@@ -411,8 +434,28 @@ public class DataAccessManager {
     }
 
     private void addElemRecursively(final DatabaseEntity entity) throws Exception {
+    	createChildrenBefore(entity);
+    	
+    	final SimpleJdbcInsert insert = new SimpleJdbcInsert(jdbcTemplate)
+	            .withTableName(entity.getTableName())
+	            .usingGeneratedKeyColumns(entity.getPrimaryKeyColumn())
+	            .usingColumns(entity.getColumnNames(false).toArray(new String[0]));
+    	final Map<String, Object> values = entity.toMap();
+    	
+    	if(log.isDebugEnabled()) {
+    		log.debug("INSERT INTO " + entity.getTableName() + " VALUES " + values);
+    	}
+		final Number key = insert.executeAndReturnKey(values);
+		if(log.isTraceEnabled()) {
+    		log.trace("Returned primary key = " + key);
+    	}
+		entity.setPrimaryKeyValue(key);
 
-    	for (final Field field : entity.getCachedDbFields()) {
+		addChildren(entity, false);
+    }
+
+	private void createChildrenBefore(final DatabaseEntity entity) throws IllegalAccessException, Exception {
+		for (final Field field : entity.getCachedDbFields()) {
     		final MappingRelation mr = field.getAnnotation(MappingRelation.class);
 			if (mr != null && mr.mappingTableName().isEmpty()) {
 				// these are required parent elements which will first be created if not existing
@@ -427,34 +470,7 @@ public class DataAccessManager {
 				}
 			}
     	}
-    	final SimpleJdbcInsert insert = new SimpleJdbcInsert(jdbcTemplate)
-	            .withTableName(entity.getTableName())
-	            .usingGeneratedKeyColumns(entity.getPrimaryKeyColumn())
-	            .usingColumns(entity.getColumnNames(false).toArray(new String[0]));
-
-		final Number key = insert.executeAndReturnKey(entity.toMap());
-		entity.setPrimaryKeyValue(key);
-
-		for (final Field field : entity.getCachedDbFields()) {
-			final MappingRelation mr = field.getAnnotation(MappingRelation.class);
-			if (mr != null && mr.mappingTableName().isEmpty()) {
-				// these are dependent child elements which will be created after creating the parent element
-				if (List.class.isAssignableFrom(field.getType())) {
-	    			final List<DatabaseEntity> list = (List)field.get(entity);
-	    			if(list != null) {
-		    			for (final DatabaseEntity child : list) {
-		    				final Field fkField = child.getCachedDbFields().stream().filter(f -> f.getName().equalsIgnoreCase(mr.joinedColumnName())).findFirst().orElse(null);
-	    					fkField.set(child, convertTo(fkField.getType(), entity.getPrimaryKeyValue()));
-	
-		    				if (child.getPrimaryKeyValue() == null) {
-		    					addElemRecursively(child);
-		    				}
-		    			}
-	    			}
-				}
-			}
-		}
-    }
+	}
 
 	public void updateElems(final List<DatabaseEntity> entities) throws Exception {
     	for (final DatabaseEntity entity : entities) {
@@ -462,39 +478,201 @@ public class DataAccessManager {
     	}
     }
 
-	public void updateElem(final DatabaseEntity obj) throws Exception {
-		final Object pk = obj.getPrimaryKeyValue();
+	public void updateElem(final DatabaseEntity entity) throws Exception {
+		final Object pk = entity.getPrimaryKeyValue();
     	if (pk == null || Integer.valueOf(String.valueOf(pk)) == -1) {
-			addElem(obj);
+			addElem(entity);
 		} else {
     		try {
-				// first, update the main entity
+    			createChildrenBefore(entity);
+    			
+    			deleteUnusedChildren(entity);
+    			
+				// then update the main entity
 				final StringBuilder sb = new StringBuilder();
-				for (final String col : obj.getColumnNames(false)) {
+				for (final String col : entity.getColumnNames(false)) {
 					sb.append(col.toLowerCase()).append(" = :").append(col.toLowerCase()).append(", ");
 				}
 				if (sb.length() > 1) {
 					sb.setLength(sb.length()-2);	// crop last comma
 				}
-				final String stmt = "UPDATE " + obj.getTableName() + " SET " + sb.toString() + " WHERE " + obj.getPrimaryKeyColumn().toLowerCase() + " = :" + obj.getPrimaryKeyColumn().toLowerCase();
-				log.debug("Query: " + sqlPrettyPrint(stmt) + "\t[" + obj.toMap() + "]");
-				namedParameterJdbcTemplate.update(stmt, obj.toMap());
-
-				// check if there is a list of sub entities which also need to be added or updated
-				for (final Map.Entry<Class<? extends DatabaseEntity>,List<DatabaseEntity>> entry : getAllChildEntities(obj, MappingTableBehaviour.IGNORE).entrySet()) {
-					final List<DatabaseEntity> elements = entry.getValue();
-					for (final DatabaseEntity element : elements) {
-						updateElem(element);
-					}
+				final String stmt = "UPDATE " + entity.getTableName() + " SET " + sb.toString() + " WHERE " + entity.getPrimaryKeyColumn().toLowerCase() + " = :" + entity.getPrimaryKeyColumn().toLowerCase();
+				if(log.isDebugEnabled()) {
+					log.debug("Query: " + sqlPrettyPrint(stmt) + "\t[" + entity.toMap() + "]");
 				}
+				int result = namedParameterJdbcTemplate.update(stmt, entity.toMap());
+				if(log.isTraceEnabled()) {
+					log.trace("Result: " + result + " rows affected");
+				}
+
+				addChildren(entity, true);
 			} catch (final Exception e) {
-				log.error("could not update element of type " + obj.getClass().getName(), e);
+				log.error("could not update element of type " + entity.getClass().getName(), e);
 				throw e;
 			}
     	}
     }
 
-    /**
+	private void addChildren(final DatabaseEntity entity, boolean isUpdate) throws IllegalAccessException, Exception {
+		final Object pk = entity.getPrimaryKeyValue();
+		for (final Field field : entity.getCachedDbFields()) {
+			final MappingRelation mr = field.getAnnotation(MappingRelation.class);
+			if (mr != null) {
+				if(mr.mappingTableName().isEmpty()) {
+					// these are dependent child elements which will be created after creating the parent element
+					if (List.class.isAssignableFrom(field.getType())) {
+		    			final List<DatabaseEntity> list = (List)field.get(entity);
+		    			if(list != null) {
+			    			for (final DatabaseEntity child : list) {
+			    				final Field fkField = child.getCachedDbFields().stream().filter(f -> f.getName().equalsIgnoreCase(mr.joinedColumnName())).findFirst().orElse(null);
+		    					fkField.set(child, convertTo(fkField.getType(), pk));
+		
+		    					// if they have a PK they were already created
+			    				if (child.getPrimaryKeyValue() == null) {
+			    					addElemRecursively(child);
+			    				}
+			    			}
+		    			}
+					}
+				} else {
+					// these are any to many relations to be inserted after main element was created,
+					// the linked objects are expected to have also been created before
+					if (List.class.isAssignableFrom(field.getType())) {
+		    			final List<DatabaseEntity> list = (List)field.get(entity);
+		    			if(list != null && list.size() > 0) {
+		    				HashSet<Object> alreadyThereList = new HashSet<>();
+		    				if(isUpdate) {
+		    					// in case of update only create the relations not already there
+		    					final String sql = "SELECT DISTINCT " + mr.joinedColumnName() + " FROM " + mr.mappingTableName() + " WHERE " + mr.masterColumnName() + " = ?";
+		    					
+		    					if(log.isDebugEnabled()) {
+			    		    		log.debug("m2m " + sql + " " + pk);
+			    		    	}
+			    				jdbcTemplate.query(sql, new RowCallbackHandler() {
+									@Override
+									public void processRow(ResultSet rs) throws SQLException {
+										alreadyThereList.add(rs.getObject(1));
+									}
+								}, pk);
+			    				if(log.isTraceEnabled()) {
+			    					log.trace("m2m Result: " + alreadyThereList);
+			    				}
+		    				}
+		    				
+			    			for (final DatabaseEntity child : list) {
+			    				final Object cpk = child.getPrimaryKeyValue();
+			    				if(cpk == null) {
+			    					throw new RuntimeException("With Many to Many Relations the linked objects have to exist (PK has to be set)!");
+			    				}
+			    				
+			    				if(alreadyThereList.add(cpk)) {
+				    				final SimpleJdbcInsert insertM2M = new SimpleJdbcInsert(jdbcTemplate)
+				    			            .withTableName(mr.mappingTableName())
+				    			            .usingColumns(new String[] { mr.masterColumnName(), mr.joinedColumnName()});
+				    				
+				    				final Map<String, Object> valuesM2M = new HashMap<>();
+				    				valuesM2M.put(mr.masterColumnName(), pk);
+				    				valuesM2M.put(mr.joinedColumnName(), cpk);
+				    				
+				    				if(log.isDebugEnabled()) {
+				    		    		log.debug("m2m INSERT INTO " + mr.mappingTableName() + " VALUES " + valuesM2M);
+				    		    	}
+				    				final int resultM2M = insertM2M.execute(valuesM2M);
+				    				if(log.isTraceEnabled()) {
+				    					log.trace("m2m Result: " + resultM2M + " affected rows");
+				    				}
+			    				}
+			    			}
+
+			    			if(log.isTraceEnabled()) {
+			    				final List<Map<String,Object>> rowsM2M = jdbcTemplate.queryForList("SELECT * FROM " + mr.mappingTableName() + " WHERE " + mr.masterColumnName() + " = ?", pk);
+			    				log.trace("m2m Result: " + rowsM2M.stream().map(m -> m.toString()).collect(Collectors.joining("\n")));
+			    			}
+		    			}
+		    			
+					}
+				}
+			}
+		}
+	}
+
+    private void deleteUnusedChildren(DatabaseEntity entity) throws Exception {
+		final Object pk = entity.getPrimaryKeyValue();
+    	for (final Field field : entity.getCachedDbFields()) {
+			final MappingRelation mr = field.getAnnotation(MappingRelation.class);
+			if (mr != null) {
+				if(mr.mappingTableName().isEmpty()) {
+					// these are dependent child elements which will be created after creating the parent element
+					// so we can delete them
+					if (List.class.isAssignableFrom(field.getType())) {
+						final List<DatabaseEntity> list = (List)field.get(entity);
+		    			if(list != null && list.size() > 0) {
+		    				final HashMap<String, ArrayList<Object>> table2pksO2M = new HashMap<>();
+		    				final HashMap<String, String> table2pk = new HashMap<>();
+		    				for (final DatabaseEntity child : list) {
+			    				final Object cpk = child.getPrimaryKeyValue();
+			    				if(cpk != null) {
+				    				ArrayList<Object> pksO2M = table2pksO2M.get(child.getTableName());
+				    				if(pksO2M == null) {
+				    					pksO2M = new ArrayList<>();
+				    					table2pksO2M.put(child.getTableName(), pksO2M);
+				    					table2pk.put(child.getTableName(), child.getTableName());
+				    				}
+				    				
+				    				pksO2M.add(cpk);
+			    				}
+			    			}
+			    			
+			    			for(final Entry<String, ArrayList<Object>> entry : table2pksO2M.entrySet()) {
+			    				final ArrayList<Object> pksO2M = entry.getValue();
+			    				
+			    				final String sql = "DELETE FROM " + entry.getKey() + " WHERE " + table2pk.get(entry.getKey()) + " NOT IN (" + pksO2M.stream().map(v -> "?").collect(Collectors.joining(",")) + ") AND " + mr.joinedColumnName() + " = ?" ;
+				    			pksO2M.add(pk);
+				    			
+				    			if(log.isDebugEnabled()) {
+			    		    		log.debug("o2m " + sql + " " + pksO2M);
+			    		    	}
+			    				final int result = jdbcTemplate.update(sql, pksO2M.toArray(new Object[pksO2M.size()]));
+			    				if(log.isTraceEnabled()) {
+			    					log.trace("o2m Result: " + result + " affected rows");
+			    				}
+			    			}
+		    			}
+					}
+				} else {
+					// these are any to many relations to be inserted after main element was created,
+					// the linked objects are expected to have their own lifespan, but we delete the relation
+					if (List.class.isAssignableFrom(field.getType())) {
+		    			final List<DatabaseEntity> list = (List)field.get(entity);
+		    			if(list != null && list.size() > 0) {
+		    				final ArrayList<Object> pksM2M = new ArrayList<>(list.size());
+			    			for (final DatabaseEntity child : list) {
+			    				final Object cpk = child.getPrimaryKeyValue();
+			    				if(cpk == null) {
+			    					throw new RuntimeException("With Many to Many Relations the linked objects have to exist (PK has to be set)!");
+			    				}
+			    				
+			    				pksM2M.add(cpk);
+			    			}
+			    			
+			    			final String sql = "DELETE FROM " + mr.mappingTableName() + " WHERE " + mr.joinedColumnName() + " NOT IN (" + pksM2M.stream().map(v -> "?").collect(Collectors.joining(",")) + ") AND " + mr.masterColumnName() + " = ?" ;
+			    			pksM2M.add(pk);
+			    			
+			    			if(log.isDebugEnabled()) {
+		    		    		log.debug("m2m " + sql + " " + pksM2M);
+		    		    	}
+		    				final int result = jdbcTemplate.update(sql, pksM2M.toArray(new Object[pksM2M.size()]));
+		    				if(log.isTraceEnabled()) {
+		    					log.trace("m2m Result: " + result + " affected rows");
+		    				}
+		    			}
+					}
+				}
+			}
+		}
+	}
+
+	/**
      * deletes all elements which expect the specified type and match the provided filter
      * @param criteria
      * @param entityType
@@ -532,8 +710,13 @@ public class DataAccessManager {
 				// if there is an m:n mapping table, remove the entry first
 				if (!mr.mappingTableName().isEmpty()) {
 					final String nmDel = "DELETE FROM " + mr.mappingTableName() + " WHERE " + mr.masterColumnName() + " = (" + stmt + ")";
-					log.debug("Query: " + sqlPrettyPrint(nmDel) + "\t[" + toCsv(params.toArray()) + "]");
-					jdbcTemplate.update(nmDel, params.toArray());
+					if(log.isDebugEnabled()) {
+						log.debug("Query: " + sqlPrettyPrint(nmDel) + "\t[" + toCsv(params.toArray()) + "]");
+					}
+					final int result = jdbcTemplate.update(nmDel, params.toArray());
+					if(log.isTraceEnabled()) {
+		            	log.trace("Result: " + result + " affected rows");
+		            }
 				}
 				else if (List.class.isAssignableFrom(field.getType())) {
 					final Type genericType = ((ParameterizedType) field.getGenericType()).getActualTypeArguments()[0];
@@ -564,8 +747,13 @@ public class DataAccessManager {
 
 		if (!idsToDelete.isEmpty()) {
 			final String query = "DELETE FROM " + entity.getTableName() + " WHERE " + entity.getPrimaryKeyColumn() + " IN (" +  toCsv(idsToDelete.toArray()) + ")";
-			log.debug("Query: " + sqlPrettyPrint(query) + "\t[" + toCsv(idsToDelete.toArray()) + "]");
-			jdbcTemplate.update(query);
+			if(log.isDebugEnabled()) {
+				log.debug("Query: " + sqlPrettyPrint(query) + "\t[" + toCsv(idsToDelete.toArray()) + "]");
+			}
+			final int result = jdbcTemplate.update(query);
+			if(log.isTraceEnabled()) {
+            	log.trace("Result: " + result + " affected rows");
+            }
 		}
 	}
 
@@ -610,40 +798,6 @@ public class DataAccessManager {
     	return sb.toString();
     }
 
-	/**
-     * returns a map which holds lists of all elements of the main entity. So if a user has roles and accounts, the result would
-     * be a map with all role elements and a list with all account elements, wrapped inside a list
-     * @param mainEntity
-     * @param mappingTableBehaviour
-     * @return
-     * @throws Exception
-     */
-    protected Map<Class<? extends DatabaseEntity>,List<DatabaseEntity>> getAllChildEntities(final DatabaseEntity mainEntity, final MappingTableBehaviour mappingTableBehaviour) throws Exception {
-    	final Map<Class<? extends DatabaseEntity>,List<DatabaseEntity>> typeToEntries = new HashMap<>();
-
-    	for (final Field f : mainEntity.getCachedDbFields()) {
-			// check if this is a list
-			if (List.class.isAssignableFrom(f.getType())) {
-    			final Type genericType = ((ParameterizedType) f.getGenericType()).getActualTypeArguments()[0];
-    			final Class<?> genericClass = Class.forName(genericType.getTypeName());
-    			// check if the list generic is of type DatabaseEntity
-    			if (DatabaseEntity.class.isAssignableFrom(genericClass)) {
-    				// if the child element is related via a many-to-many table, we need to check if it should be part of the result
-    				final MappingRelation mr = f.getAnnotation(MappingRelation.class);
-    				if (mr != null && !mr.mappingTableName().isEmpty() && mappingTableBehaviour == MappingTableBehaviour.IGNORE) {
-    					continue;
-    				}
-    				List<DatabaseEntity> list = (List<DatabaseEntity>)f.get(mainEntity);
-    				if (list == null) {
-						list = new ArrayList<>(0);
-					}
-    				typeToEntries.put((Class<? extends DatabaseEntity>)genericClass, list);
-    			}
-			}
-    	}
-    	return typeToEntries;
-    }
-
     /**
 	 * builds a query from the entity and given filters
 	 * @param entity - the main entity
@@ -679,7 +833,6 @@ public class DataAccessManager {
 	}
 
 	private void buildQueryRecursively(final DatabaseEntity entity, String path, final CriteriaGroup filter, final StringBuilder select, final StringBuilder from, final StringBuilder join, final StringBuilder where, Sort orderBy, final ArrayList<Object> params, int currentDepth, final int fetchDepth) throws Exception {
-
 		currentDepth++;
 
 		// search for custom sql
