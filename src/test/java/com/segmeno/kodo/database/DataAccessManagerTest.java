@@ -39,6 +39,12 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowCallbackHandler;
 @TestMethodOrder(OrderAnnotation.class)
 public class DataAccessManagerTest {
+	private static final String PLZ_AHNATAL = "34292";
+	private static final String PLZ_VELLMAR = "34246";
+	private static final String PLZ_KASSEL = "34117";
+	private static final String TYPE_GREEN = "green";
+	private static final String TYPE_RED = "red";
+	private static final String TYPE_BLUE = "blue";
 	private static final String ROLE_ADMIN = "Admin";
 	private static final String ROLE_TESTER = "Tester";
 	private static final String ROLE_NORMAL_GUY = "Normal Guy";
@@ -74,7 +80,7 @@ public class DataAccessManagerTest {
 		stmt.execute("create table tbType (id integer AUTO_INCREMENT PRIMARY KEY, name varchar)");
 		con.commit();
 
-		stmt.execute("insert into tbType (name) values ('red'), ('green'), ('blue'), ('RESTRICTED'), ('ALL ACCESS')");
+		stmt.execute("insert into tbType (name) values ('" + TYPE_RED + "'), ('" + TYPE_GREEN + "'), ('" + TYPE_BLUE + "'), ('RESTRICTED'), ('ALL ACCESS')");
 		con.commit();
 
 		stmt.execute("insert into tbUser (name, passwordHash, clearanceLevelId, createdAt) values ('Tom', 'pw123', 5, '2020-01-01')");
@@ -183,11 +189,12 @@ public class DataAccessManagerTest {
 	@Test
     @Order(7)
 	public void updateElemTest() throws Exception {
-		Criteria c = new Criteria("name", Operator.EQUALS, "Bill");
-		TestUser u = new TestUser();
-		u.name = "Bill";
-		u.pwHash = "ttt";
-		
+		TestType t1 = new TestType();
+		t1.id = 1;
+		t1.name = TYPE_RED;
+		TestType t2 = new TestType();
+		t1.id = 2;
+		t1.name = TYPE_GREEN;
 		
 		TestRole r1 = new TestRole();
 		r1.name = ROLE_ADMIN;
@@ -195,35 +202,58 @@ public class DataAccessManagerTest {
 		TestRole r2 = new TestRole();
 		r2.name = ROLE_TESTER;
 		r2.id = 2;
+		TestRole r3 = new TestRole();
+		r3.name = ROLE_NORMAL_GUY;
+		r3.id = 3;
+		
+		
+		Criteria c = new Criteria("name", Operator.EQUALS, "Bill");
+		TestUser u = new TestUser();
+		u.name = "Bill";
+		u.pwHash = "ttt";
+		u.clearanceLevel = t1;
 		
 		u.roles.add(r1);
 		u.roles.add(r2);
+		
+		u.addresses.add(createAddress(PLZ_KASSEL));
+		u.addresses.add(createAddress(PLZ_VELLMAR));
 		
 		// create
 		u = manager.addElem(u);
 		try {		
 			// check
 			List<TestUser> l = manager.getElems(c, TestUser.class);
-			
 			assertNotNull(l);
 			assertEquals(l.size(), 1);
 			u = l.get(0);
 			assertEquals(u.pwHash, "ttt");
+			assertNotNull(u.clearanceLevel);
+			assertEquals(u.clearanceLevel.name, t1.name);
 			assertNotNull(u.roles);
 			assertEquals(u.roles.size(), 2);
 			assertNotNull(u.roles.stream().filter(r -> r.name.equals(ROLE_ADMIN)).findFirst().orElse(null));
 			assertNotNull(u.roles.stream().filter(r -> r.name.equals(ROLE_TESTER)).findFirst().orElse(null));
+			assertNotNull(u.addresses);
+			assertEquals(u.addresses.size(), 2);
+			assertNotNull(u.addresses.stream().filter(r -> r.postalCode.equals(PLZ_KASSEL)).findFirst().orElse(null));
+			assertNotNull(u.addresses.stream().filter(r -> r.postalCode.equals(PLZ_VELLMAR)).findFirst().orElse(null));
 			
 			// modify
 			u.pwHash = "ttt2";
+			u.clearanceLevel = t2;
+			
 			u.roles = u.roles.stream().filter(r -> {
 				// remove ROLE_TESTER
 				return r.name.equals(ROLE_ADMIN);
 			}).collect(Collectors.toList());
-			TestRole r3 = new TestRole();
-			r3.name = ROLE_NORMAL_GUY;
-			r3.id = 3;
 			u.roles.add(r3);
+			
+			u.addresses = u.addresses.stream().filter(r -> {
+				// remove PLZ_KASSEL
+				return r.postalCode.equals(PLZ_VELLMAR);
+			}).collect(Collectors.toList());
+			u.addresses.add(createAddress(PLZ_AHNATAL));
 					
 			manager.updateElem(u);
 			
@@ -233,14 +263,26 @@ public class DataAccessManagerTest {
 			assertEquals(l.size(), 1);
 			u = l.get(0);
 			assertEquals(u.pwHash, "ttt2");
+			assertNotNull(u.clearanceLevel);
+			assertEquals(u.clearanceLevel.name, t2.name);
 			assertNotNull(u.roles);
 			assertEquals(u.roles.size(), 2);
 			assertNotNull(u.roles.stream().filter(r -> r.name.equals(ROLE_ADMIN)).findFirst().orElse(null));
 			assertNotNull(u.roles.stream().filter(r -> r.name.equals(ROLE_NORMAL_GUY)).findFirst().orElse(null));
+			assertNotNull(u.addresses);
+			assertEquals(u.addresses.size(), 2);
+			assertNotNull(u.addresses.stream().filter(r -> r.postalCode.equals(PLZ_VELLMAR)).findFirst().orElse(null));
+			assertNotNull(u.addresses.stream().filter(r -> r.postalCode.equals(PLZ_AHNATAL)).findFirst().orElse(null));
 		} finally {
 			// delete
 			manager.deleteElems(c, TestUser.class);
 		}
+	}
+
+	private TestAddress createAddress(String plz) {
+		TestAddress a = new TestAddress();
+		a.postalCode = plz;
+		return a;
 	}
 
 	@Test
@@ -269,8 +311,8 @@ public class DataAccessManagerTest {
 		assertEquals(tim.roles.size(), 1);
 
 		final TestRole timsRole = tim.roles.get(0);
-		assertEquals(timsRole.primaryColor.name, ("green"));
-		assertEquals(timsRole.secondaryColor.name, ("green"));
+		assertEquals(timsRole.primaryColor.name, TYPE_GREEN);
+		assertEquals(timsRole.secondaryColor.name, TYPE_GREEN);
 	}
 
 	@Test
@@ -281,15 +323,15 @@ public class DataAccessManagerTest {
 
 		manager.deleteElems(crits, TestUser.class);
 
-		assertTrue(manager.getElemCount(new Criteria("Name", Operator.EQUALS, "Tom"), TestUser.class) == 0);
+		assertEquals(manager.getElemCount(new Criteria("Name", Operator.EQUALS, "Tom"), TestUser.class), 0);
 
-		assertTrue(manager.getElemCount(TestRole.class) == 2);
+		assertEquals(manager.getElemCount(TestRole.class), 3);
 
 		final CriteriaGroup cg = new CriteriaGroup(Operator.OR)
 							.add(new Criteria("Street", Operator.EQUALS, "Elmstreet"))
 							.add(new Criteria("Street", Operator.EQUALS, "Testplace"));
 
-		assertTrue(manager.getElemCount(cg, TestAddress.class) == 0);
+		assertEquals(manager.getElemCount(cg, TestAddress.class), 0);
 
 		manager.addElem(user);
 	}

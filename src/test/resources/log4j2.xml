@@ -2,11 +2,11 @@
 <Configuration status="info">
 
     <Properties>
-        <Property name="layout">%d{HH:mm:ss.SSS} [%t] %-5level %logger{1.1.1.36} - %msg%n</Property>
+        <Property name="layout">%d{HH:mm:ss.SSS} [%t] %-5level %C:%L - %msg%n</Property>
     </Properties>
 
     <Appenders>
-        <Console name="CONSOLE" target="SYSTEM_OUT">
+        <Console name="CONSOLE" target="SYSTEM_OUT" includeLocation="true">
             <PatternLayout pattern="${layout}"/>
         </Console>
     </Appenders>
