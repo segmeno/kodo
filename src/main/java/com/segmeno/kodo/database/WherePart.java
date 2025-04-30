@@ -1,11 +1,8 @@
 package com.segmeno.kodo.database;
 
-import com.segmeno.kodo.transport.Criteria;
-import com.segmeno.kodo.transport.CriteriaGroup;
-import com.segmeno.kodo.transport.Operator;
-
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
@@ -15,6 +12,13 @@ import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.segmeno.kodo.transport.Criteria;
+import com.segmeno.kodo.transport.CriteriaGroup;
+import com.segmeno.kodo.transport.Operator;
+
+/**
+ * @author  tdr, chu
+ */
 public class WherePart {
 
 	private static final Logger log = LogManager.getLogger(WherePart.class);
@@ -34,29 +38,9 @@ public class WherePart {
 	};
 
 	protected final String sql;
-	protected List<Object> params = new ArrayList<>();
-	protected List<String> columnNames = new ArrayList<>();
+	protected List<Object> params = new ArrayList<>(6);
+	protected Set<String> knownColumnNames = Collections.emptySet();
 	protected final String dbProduct;
-
-	/**
-	 *
-	 * @param tableAlias - the alias of the table
-	 * @param adCrit     - the filter settings to be used
-	 * @throws Exception
-	 */
-	public WherePart(final String tableAlias, final CriteriaGroup adCrit) throws Exception {
-		this(null, tableAlias, adCrit);
-	}
-
-	/**
-	 * @param dbProduct  - the database vendor
-	 * @param tableAlias - the alias of the table
-	 * @param adCrit     - the filter settings to be used
-	 * @throws Exception
-	 */
-	public WherePart(final String dbProduct, final String tableAlias, final CriteriaGroup adCrit) throws Exception {
-		this(dbProduct, tableAlias, null, adCrit);
-	}
 
 	/**
 	 * @param tableAlias  - the alias of the table
@@ -66,8 +50,8 @@ public class WherePart {
 	 * @param adCrit      - the filter settings to be used
 	 * @throws Exception
 	 */
-	public WherePart(final String tableAlias, final List<String> columnNames, final CriteriaGroup adCrit) throws Exception {
-		this(null, tableAlias, columnNames, adCrit);
+	public WherePart(final String tableAlias, final Set<String> knownColumnNames, final CriteriaGroup adCrit) throws Exception {
+		this(null, tableAlias, knownColumnNames, adCrit);
 	}
 
 	/**
@@ -79,10 +63,10 @@ public class WherePart {
 	 * @param adCrit      - the filter settings to be used
 	 * @throws Exception
 	 */
-	public WherePart(final String dbProduct, String tableAlias, final List<String> columnNames, CriteriaGroup adCrit) throws Exception {
+	public WherePart(final String dbProduct, String tableAlias, final Set<String> knownColumnNames, CriteriaGroup adCrit) throws Exception {
 		this.dbProduct = dbProduct;
-		if (columnNames != null) {
-			this.columnNames = columnNames.stream().map(col -> col.toUpperCase()).collect(Collectors.toList());
+		if (knownColumnNames != null) {
+			this.knownColumnNames = knownColumnNames.stream().map(col -> col.toUpperCase()).collect(Collectors.toSet());
 		}
 
 		tableAlias = tableAlias != null ? tableAlias + "." : "";
@@ -115,12 +99,12 @@ public class WherePart {
 				} else {
 
 					// first check if the column name is really existing
-					if (!this.columnNames.isEmpty()) {
-						if (crit.getFieldName() != null && !this.columnNames.contains(crit.getFieldName().toUpperCase())) {
+					if (!this.knownColumnNames.isEmpty()) {
+						if (crit.getFieldName() != null && !this.knownColumnNames.contains(crit.getFieldName().toUpperCase())) {
 							final String s = "Check your filter settings: Column with Name '" + crit.getFieldName()
-									+ "' used in criteria, but not existing in table " + tableAlias;
+									+ "' used in criteria, but not existing in table alias " + tableAlias;
 							log.error(s);
-							throw new Exception(s);
+							throw new UnknownFieldForEntityException(crit.getFieldName());
 						}
 					}
 
@@ -143,7 +127,7 @@ public class WherePart {
 
 	/**
 	 * append the SQL for a given criteria (depends on operator)
-	 * 
+	 *
 	 * @param tableAlias
 	 * @param sb
 	 * @param crit
@@ -446,7 +430,7 @@ public class WherePart {
 
 	/**
 	 * checks if the combination of Operator and value type is correct
-	 * 
+	 *
 	 * @param criteria
 	 * @throws Exception
 	 */

@@ -288,7 +288,7 @@ public class DataAccessManagerTest {
 	@Test
     @Order(8)
 	public void getRecordsTest() throws Exception {
-		final List<Map<String,Object>> res = manager.getRecords("tbUser", null, 10, 1, new Sort("Name", SortDirection.ASC));
+		final List<Map<String,Object>> res = manager.getRecords("tbUser", null, null, 10, 1, new Sort("Name", SortDirection.ASC));
 		assertEquals(res.size(), 2);
 		assertEquals((int)res.get(0).get("ID"), 2);
 	}

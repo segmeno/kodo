@@ -1,21 +1,25 @@
 package com.segmeno.kodo.database;
 
-import com.segmeno.kodo.annotation.Column;
-import com.segmeno.kodo.annotation.DbIgnore;
-import com.segmeno.kodo.annotation.MappingRelation;
-import com.segmeno.kodo.annotation.PrimaryKey;
-
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.List;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.segmeno.kodo.annotation.Column;
+import com.segmeno.kodo.annotation.DbIgnore;
+import com.segmeno.kodo.annotation.MappingRelation;
+import com.segmeno.kodo.annotation.PrimaryKey;
+
+/**
+ * @author tdr, chu
+ */
 public abstract class DatabaseEntity {
 
 	private static final Logger LOGGER = LogManager.getLogger(DatabaseEntity.class);
@@ -25,58 +29,78 @@ public abstract class DatabaseEntity {
 	private String tableAlias;
 	private final Field primaryKey;
 
-	private final transient HashMap<Class, ArrayList<Field>> class2fields = new HashMap<>(64);
-	private final transient HashMap<Class, Field> class2pk = new HashMap<>(64);
-	private transient ArrayList<Field> fields;
+	private final transient HashMap<Class, MetaInfo> class2meta = new HashMap<>(64);
+
+	private final static class MetaInfo {
+		protected Field pk;
+		protected ArrayList<Field> fields = new ArrayList<>(64);
+		protected HashSet<String> withPrimaryKey = new HashSet<String>(64);
+		protected HashSet<String> withoutPrimaryKey = new HashSet<String>(64);
+	}
+
+	private transient MetaInfo metaInfo;
 
 	public DatabaseEntity() {
 		final Class clazz = this.getClass();
-		fields = class2fields.get(clazz);
-		if(fields == null) {
-			synchronized(class2fields) {
-				fields = class2fields.get(clazz);
-				if(fields == null) {
-					fields = new ArrayList<>(128);
-					final Field pk = getFields(clazz, fields);
-					class2pk.put(clazz, pk);
-					fields.trimToSize();
-					class2fields.put(clazz, fields);
+		metaInfo = class2meta.get(clazz);
+		if (metaInfo == null) {
+			synchronized (class2meta) {
+				metaInfo = class2meta.get(clazz);
+				if (metaInfo == null) {
+					metaInfo = new MetaInfo();
+					metaInfo.pk = getFields(clazz, metaInfo);
+					class2meta.put(clazz, metaInfo);
 				}
 			}
 		}
 
-		primaryKey = class2pk.get(clazz);
-		if(primaryKey == null) {
-		  throw new RuntimeException(this.getClass().getName() + " has not @PrimaryKey defined");
+		primaryKey = metaInfo.pk;
+		if (primaryKey == null) {
+			throw new RuntimeException(this.getClass().getName() + " has not @PrimaryKey defined");
 		}
 	}
 
 	public ArrayList<Field> getCachedDbFields() {
-		return fields;
+		return metaInfo.fields;
 	}
-	
-	private Field getFields(Class startClass, ArrayList<Field> fields) {
+
+	private static Field getFields(Class startClass, MetaInfo metaInfo) {
 		Field pk = null;
 		Class clazz = startClass;
-		while(clazz != null && !DatabaseEntity.class.equals(clazz)) {
+		while (clazz != null && !DatabaseEntity.class.equals(clazz)) {
 			for (final Field field : clazz.getDeclaredFields()) {
 				field.setAccessible(true);
 				if (field.getAnnotation(DbIgnore.class) != null) {
 					continue;
 				}
+				metaInfo.fields.add(field);
+
 				// do not overwrite once found pk, with that from a base class
 				if (field.getAnnotation(PrimaryKey.class) != null) {
-					if(pk != null) {
-						LOGGER.warn("For " + startClass + " we found primary key " + pk + " and now also " + field + ", we will use the first one");
+					if (pk != null) {
+						LOGGER.error("For " + startClass + " we found primary key " + pk + " and now also " + field + ", we will use the first one");
 					} else {
 						pk = field;
+						metaInfo.withPrimaryKey.add(field.getName());
 					}
+				} else if (Collection.class.isAssignableFrom(field.getType())) {
+					continue;
+				} else if (field.getAnnotation(Column.class) != null && !field.getAnnotation(Column.class).columnName().isEmpty()) {
+					metaInfo.withoutPrimaryKey.add(field.getAnnotation(Column.class).columnName());
+					metaInfo.withPrimaryKey.add(field.getAnnotation(Column.class).columnName());
+				} else if (field.getAnnotation(MappingRelation.class) != null && field.getAnnotation(MappingRelation.class).mappingTableName().isEmpty()) {
+					metaInfo.withoutPrimaryKey.add(field.getAnnotation(MappingRelation.class).masterColumnName());
+					metaInfo.withPrimaryKey.add(field.getAnnotation(MappingRelation.class).masterColumnName());
+				} else {
+					metaInfo.withoutPrimaryKey.add(field.getName());
+					metaInfo.withPrimaryKey.add(field.getName());
 				}
-				fields.add(field);
 			}
 			clazz = clazz.getSuperclass();
 		}
-		
+
+		metaInfo.fields.trimToSize();
+
 		return pk;
 	}
 
@@ -90,34 +114,21 @@ public abstract class DatabaseEntity {
 	 *
 	 * @return the column names of this entity
 	 */
-	public List<String> getColumnNames(final boolean includePrimaryKeyColumn) throws Exception {
-		final List<String> cols = new ArrayList<>();
-		for (final Field f : fields) {
-			if ((!includePrimaryKeyColumn && f.getAnnotation(PrimaryKey.class) != null) || Collection.class.isAssignableFrom(f.getType())) {
-				continue;
-			}
-			if (f.getAnnotation(Column.class) != null && !f.getAnnotation(Column.class).columnName().isEmpty()) {
-				cols.add(f.getAnnotation(Column.class).columnName());
-			}
-			else if (f.getAnnotation(MappingRelation.class) != null && f.getAnnotation(MappingRelation.class).mappingTableName().isEmpty()) {
-				cols.add(f.getAnnotation(MappingRelation.class).masterColumnName());
-			}
-			else {
-				cols.add(f.getName());
-			}
-		}
-		return cols;
-	};
+	public Set<String> getColumnNames(final boolean includePrimaryKeyColumn) throws Exception {
+		return includePrimaryKeyColumn ? metaInfo.withPrimaryKey : metaInfo.withoutPrimaryKey;
+	}
 
 	/**
-	 * * retrieves all fields which should be persisted in the db when saving the inheriting object
+	 * * retrieves all fields which should be persisted in the db when saving the
+	 * inheriting object
+	 * 
 	 * @return a map presentation of the object
 	 * @throws Exception
 	 */
 	public Map<String, Object> toMap() throws Exception {
-		final Map<String,Object> map = new HashMap<String,Object>();
-		for (final Field f : fields) {
-			if (List.class.isAssignableFrom(f.getType())) {
+		final Map<String, Object> map = new HashMap<String, Object>();
+		for (final Field f : metaInfo.fields) {
+			if (Collection.class.isAssignableFrom(f.getType())) {
 				continue;
 			}
 			final String colName;
@@ -127,14 +138,14 @@ public abstract class DatabaseEntity {
 			} else if (f.getAnnotation(MappingRelation.class) != null && f.getAnnotation(MappingRelation.class).mappingTableName().isEmpty()) {
 				colName = f.getAnnotation(MappingRelation.class).masterColumnName().toLowerCase();
 				if (DatabaseEntity.class.isAssignableFrom(f.getType())) {
-					final DatabaseEntity elem = (DatabaseEntity)f.get(this);
-					if(elem == null) {
+					final DatabaseEntity elem = (DatabaseEntity) f.get(this);
+					if (elem == null) {
 						map.put(colName, null);
 					} else {
 						final Object epk = elem.getPrimaryKeyValue();
-						if(epk == null) {
-	    					throw new RuntimeException("With One to One Relations the linked object has to exist (PK has to be set)!");
-	    				}
+						if (epk == null) {
+							throw new RuntimeException("With One to One Relations the linked object has to exist (PK has to be set)!");
+						}
 						map.put(colName, epk);
 					}
 				} else {
@@ -157,16 +168,17 @@ public abstract class DatabaseEntity {
 		if (primaryKey != null) {
 			return primaryKey.getName();
 		}
-		throw new Exception("Could not find primary key for entity '" + this.getClass().getName() +"'. Please use the '@PrimaryKey' annotation to mark a field as PrimaryKey!");
+		throw new Exception("Could not find primary key for entity '" + this.getClass().getName() + "'. Please use the '@PrimaryKey' annotation to mark a field as PrimaryKey!");
 	}
 
 	/**
 	 * fills the inheriting object from the values from the map
+	 * 
 	 * @param map all values to the corresponding field names
 	 */
 	public void fromMap(final Map<String, Object> map) throws Exception {
 
-		for (final Field f: fields) {
+		for (final Field f : metaInfo.fields) {
 			f.setAccessible(true);
 			if (map.get(f.getName()) != null) {
 				f.set(this, map.get(f.getName()));
@@ -182,7 +194,7 @@ public abstract class DatabaseEntity {
 	 */
 	public void setPrimaryKeyValue(final Object id) throws Exception {
 		if (primaryKey == null) {
-			throw new Exception("Could not find primary key for entity '" + this.getClass().getName() +"'. Please use the '@PrimaryKey' annotation to mark a field as PrimaryKey!");
+			throw new Exception("Could not find primary key for entity '" + this.getClass().getName() + "'. Please use the '@PrimaryKey' annotation to mark a field as PrimaryKey!");
 		}
 		primaryKey.set(this, DataAccessManager.convertTo(primaryKey.getType(), id));
 	}
@@ -195,7 +207,7 @@ public abstract class DatabaseEntity {
 	public Object getPrimaryKeyValue() {
 
 		if (primaryKey == null) {
-			final String msg = "Could not find primary key for entity '" + this.getClass().getName() +"'. Please use the '@PrimaryKey' annotation to mark a field as PrimaryKey!";
+			final String msg = "Could not find primary key for entity '" + this.getClass().getName() + "'. Please use the '@PrimaryKey' annotation to mark a field as PrimaryKey!";
 			LOGGER.error(msg);
 			throw new RuntimeException(msg);
 		}
@@ -215,7 +227,7 @@ public abstract class DatabaseEntity {
 	 * @param key
 	 * @return
 	 */
-	protected Integer getIntOrNull(final Map<String,Object> map, final String key) {
+	protected Integer getIntOrNull(final Map<String, Object> map, final String key) {
 		if (map == null || map.get(key) == null) {
 			return null;
 		}
@@ -229,7 +241,7 @@ public abstract class DatabaseEntity {
 	 * @param key
 	 * @return
 	 */
-	protected Boolean getBoolOrNull(final Map<String,Object> map, final String key) {
+	protected Boolean getBoolOrNull(final Map<String, Object> map, final String key) {
 		if (map == null || map.get(key) == null) {
 			return null;
 		}
@@ -243,7 +255,7 @@ public abstract class DatabaseEntity {
 	 * @param key
 	 * @return
 	 */
-	protected String getStringOrNull(final Map<String,Object> map, final String key) {
+	protected String getStringOrNull(final Map<String, Object> map, final String key) {
 		if (map == null || map.get(key) == null) {
 			return null;
 		}
@@ -260,12 +272,12 @@ public abstract class DatabaseEntity {
 	 * @param key
 	 * @return
 	 */
-	protected Date getDateOrNull(final Map<String,Object> map, final String key) {
+	protected Date getDateOrNull(final Map<String, Object> map, final String key) {
 		if (map == null || map.get(key) == null) {
 			return null;
 		}
 		if (map.get(key) instanceof Date) {
-			return (Date)(map.get(key));
+			return (Date) (map.get(key));
 		}
 		return null;
 	}

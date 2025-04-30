@@ -8,12 +8,14 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -36,7 +38,9 @@ import com.segmeno.kodo.transport.IKodoEnum;
 import com.segmeno.kodo.transport.Operator;
 import com.segmeno.kodo.transport.Sort;
 import com.segmeno.kodo.transport.Sort.SortDirection;
-
+/**
+ * @author  tdr, chu
+ */
 public class DataAccessManager {
 
 	private static final Logger log = LogManager.getLogger(DataAccessManager.class);
@@ -234,22 +238,21 @@ public class DataAccessManager {
 		}
 	}
 
-	public List<Map<String, Object>> getRecords(final String tableName, final int pageSize, final int currentPage) throws Exception {
-		return getRecords(tableName, (Criteria) null, pageSize, currentPage);
+	public List<Map<String, Object>> getRecords(final String tableName, final Set<String> knownColumnNames, final int pageSize, final int currentPage) throws Exception {
+		return getRecords(tableName, knownColumnNames, (Criteria) null, pageSize, currentPage);
 	}
 
-	public List<Map<String, Object>> getRecords(final String tableName, final Criteria criteria, final int pageSize, final int currentPage)
+	public List<Map<String, Object>> getRecords(final String tableName, final Set<String> knownColumnNames, final Criteria criteria, final int pageSize, final int currentPage)
 			throws Exception {
-		return getRecords(tableName, new CriteriaGroup(Operator.AND, criteria), pageSize, currentPage, null);
+		return getRecords(tableName, knownColumnNames, new CriteriaGroup(Operator.AND, criteria), pageSize, currentPage, null);
 	}
 
-	public List<Map<String, Object>> getRecords(final String tableName, final CriteriaGroup criteriaGroup, final int pageSize,
+	public List<Map<String, Object>> getRecords(final String tableName, final Set<String> knownColumnNames, final CriteriaGroup criteriaGroup, final int pageSize,
 			final int currentPage, final Sort sort) throws Exception {
-
 		if (sort == null) {
 			throw new Exception("a sort is required in order to use paging!");
 		}
-		final WherePart where = new WherePart(DB_PRODUCT, tableName, criteriaGroup);
+		final WherePart where = new WherePart(DB_PRODUCT, tableName, knownColumnNames, criteriaGroup);
 		String stmt = "SELECT * FROM " + tableName + " WHERE " + where.toString() + sort.toString();
 		final String count = "SELECT COUNT(*) FROM (" + stmt + ")";
 
@@ -765,7 +768,7 @@ public class DataAccessManager {
 	public void deleteElems(final CriteriaGroup advancedCriteria, final Class<? extends DatabaseEntity> entityType) throws Exception {
 		try {
 			final DatabaseEntity obj = entityType.getConstructor().newInstance();
-			final WherePart whereClause = new WherePart(DB_PRODUCT, obj.getTableName(), advancedCriteria);
+			final WherePart whereClause = new WherePart(DB_PRODUCT, obj.getTableName(), obj.getColumnNames(true), advancedCriteria);
 			final String stmt = "SELECT " + obj.getPrimaryKeyColumn() + " FROM " + obj.getTableName() + " WHERE " + whereClause.toString();
 
 			deleteElemsRecursively(obj, stmt, whereClause.getValues());
@@ -854,7 +857,7 @@ public class DataAccessManager {
 		return sb.toString();
 	}
 
-	protected String getColumnsCsv(final String tableAlias, final List<String> cols, final boolean useAlias) throws Exception {
+	protected String getColumnsCsv(final String tableAlias, final Set<String> cols, final boolean useAlias) throws Exception {
 		final StringBuilder sb = new StringBuilder();
 		for (final String col : cols) {
 			validateColName(col);
@@ -923,7 +926,7 @@ public class DataAccessManager {
 			select.setLength(0);
 			select.append(customSql.selectQuery());
 			if (filter != null && !filter.getCriterias().isEmpty()) {
-				final WherePart wp = new WherePart(DB_PRODUCT, (String) null, filter);
+				final WherePart wp = new WherePart(DB_PRODUCT, (String) null, asSet(customSql.knownColumnNames()), filter);
 				params.addAll(wp.getValues());
 				where.append(" WHERE " + wp.toString());
 			}
@@ -931,10 +934,11 @@ public class DataAccessManager {
 		}
 
 		if (select.length() == 0) {
-			select.append("SELECT " + getColumnsCsv(entity.getTableName(), entity.getColumnNames(true), false));
+			final Set<String> colNames = entity.getColumnNames(true);
+			select.append("SELECT " + getColumnsCsv(entity.getTableName(), colNames, false));
 			from.append(" FROM " + entity.getTableName());
 			if (filter != null && !filter.getCriterias().isEmpty()) {
-				final WherePart wp = new WherePart(DB_PRODUCT, entity.getTableName(), filter);
+				final WherePart wp = new WherePart(DB_PRODUCT, entity.getTableName(), colNames, filter);
 				params.addAll(wp.getValues());
 				where.append(" WHERE " + wp.toString());
 			}
@@ -1007,6 +1011,15 @@ public class DataAccessManager {
 						+ " found, but the MappingRelation annotation is missing");
 			}
 		}
+	}
+
+	private Set<String> asSet(final String[] array) {
+		if(array == null) {
+			return null;
+		}
+		final Set<String> set = new HashSet<>(array.length);
+		Collections.addAll(set, array);
+		return set;
 	}
 
 	private Field findField(final Class<?> clazz, final String fieldName) {

@@ -2,15 +2,17 @@ package com.segmeno.kodo.database;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.segmeno.kodo.transport.Criteria;
-import com.segmeno.kodo.transport.CriteriaGroup;
-import com.segmeno.kodo.transport.Operator;
+import com.google.common.collect.Sets;
 
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
+
+import com.segmeno.kodo.transport.Criteria;
+import com.segmeno.kodo.transport.CriteriaGroup;
+import com.segmeno.kodo.transport.Operator;
 
 public class WherePartTest {
 
@@ -23,7 +25,7 @@ public class WherePartTest {
 		final CriteriaGroup cg = new CriteriaGroup(Operator.AND);
 		cg.add(new Criteria("ID", Operator.IN_SET, ids));
 
-		final WherePart w = new WherePart("testtable", cg);
+		final WherePart w = new WherePart("testtable", Sets.newHashSet("ID"), cg);
 		assertTrue(w.toString().equals("(testtable.ID IN (?,?,?))"));
         assertTrue(w.getValues().size() == 3);
 		assertTrue(w.getValues().containsAll(ids));
@@ -38,7 +40,7 @@ public class WherePartTest {
 		final CriteriaGroup cg = new CriteriaGroup(Operator.AND);
 		cg.add(new Criteria("Name", Operator.NOT_IN_SET, names));
 
-		final WherePart w = new WherePart("testtable", cg);
+		final WherePart w = new WherePart("testtable", Sets.newHashSet("Name"), cg);
 		assertTrue(w.toString().equals("(testtable.Name NOT IN (?,?,?))"));
         assertTrue(w.getValues().size() == 3);
         assertTrue(w.getValues().containsAll(names));
@@ -52,7 +54,7 @@ public class WherePartTest {
         final CriteriaGroup cg = new CriteriaGroup(Operator.AND);
         cg.add(new Criteria("Date", Operator.BETWEEN, dates));
 
-        final WherePart w = new WherePart("testtable", cg);
+        final WherePart w = new WherePart("testtable", Sets.newHashSet("Date"), cg);
         assertTrue(w.toString().equals("(testtable.Date BETWEEN ? AND ?)"));
         assertTrue(w.getValues().size() == 2);
         assertTrue(w.getValues().containsAll(dates));
@@ -71,7 +73,7 @@ public class WherePartTest {
         cgchild.add(new Criteria("Str", Operator.EQUALS, strValue));
         cgroot.add(new Criteria(cgchild));
 
-        final WherePart w = new WherePart("testtable", cgroot);
+        final WherePart w = new WherePart("testtable", Sets.newHashSet("Date", "Int", "Str"), cgroot);
         assertTrue(w.toString().equals("(testtable.Date = ? and (testtable.Int = ? or testtable.Str = ?))"));
         assertTrue(w.getValues().size() == 3);
         assertTrue(w.getValues().get(0).equals(dateValue));
